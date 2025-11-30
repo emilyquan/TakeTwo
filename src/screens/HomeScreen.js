@@ -30,10 +30,10 @@ export default function HomeScreen({ navigation }) {
 
     // Define boards with categories
     const BOARD_CATEGORIES = [
-        { id: 'trending', title: 'Trending', emoji: '🔥' },
-        { id: 'romance', title: 'Romance', emoji: '💕' },
-        { id: 'locations', title: 'Locations', emoji: '📍' },
-        { id: 'recreations', title: 'Recreations', emoji: '🎬' },
+        { id: 'trending', title: 'Trending', emoji: 'ðŸ”¥' },
+        { id: 'romance', title: 'Romance', emoji: 'ðŸ’•' },
+        { id: 'locations', title: 'Locations', emoji: 'ðŸ“' },
+        { id: 'recreations', title: 'Recreations', emoji: 'ðŸŽ¬' },
     ];
 
     useFocusEffect(
@@ -55,28 +55,28 @@ export default function HomeScreen({ navigation }) {
                 {
                     id: 'trending',
                     title: 'Trending',
-                    emoji: '🔥',
+                    emoji: 'ðŸ”¥',
                     count: trendingData.results.length,
                     preview: trendingData.results.slice(0, 4),
                 },
                 {
                     id: 'romance',
                     title: 'Romance',
-                    emoji: '💕',
+                    emoji: 'ðŸ’•',
                     count: romanceData.results.length,
                     preview: romanceData.results.slice(0, 4),
                 },
                 {
                     id: 'locations',
                     title: 'Locations',
-                    emoji: '📍',
+                    emoji: 'ðŸ“',
                     count: 10, // From filming locations database
                     preview: [],
                 },
                 {
                     id: 'recreations',
                     title: 'My Recreations',
-                    emoji: '🎬',
+                    emoji: 'ðŸŽ¬',
                     count: userStats.scenes_recreated || 0,
                     preview: [],
                 },
@@ -111,7 +111,7 @@ export default function HomeScreen({ navigation }) {
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }
         >
-            {/* Heading Section */}
+            {/* Hero Section */}
             <View style={styles.hero}>
                 <Text style={styles.greeting}>Hi, Welcome!</Text>
                 <Text style={styles.subtitle}>recreate iconic moments</Text>

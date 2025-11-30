@@ -1,4 +1,4 @@
-// App.js - Main Entry Point
+// App.js - Main Entry Point (CORRECTED PATHS)
 
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';

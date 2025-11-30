@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // IMPORTANT: Replace this with your actual TMDB API key from https://www.themoviedb.org/settings/api
-const TMDB_API_KEY = '41869625e9a8aa3a0f15a05ce425d9a6'; // <-- PUT YOUR REAL API KEY HERE
+const TMDB_API_KEY = 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'; // <-- PUT YOUR REAL API KEY HERE
 
 const BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
