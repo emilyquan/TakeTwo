@@ -1,28 +1,229 @@
-// Scene Library
-// In-progress
+// screens/SceneLibraryScreen.js - Updated Scene Library
 
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    FlatList,
+    TouchableOpacity,
+    TextInput,
+    Image,
+    ActivityIndicator,
+    Dimensions,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
+import {
+    getPopularMovies,
+    getGenres,
+    getMoviesByGenre,
+    searchMovies,
+    getImageUrl,
+} from '../utils/tmdbApi';
 
-export default function SceneLibraryScreen() {
-    return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <Text style={styles.title}>Scene Library</Text>
-            <Text style={styles.subtitle}>Browse iconic movie scenes</Text>
+const { width } = Dimensions.get('window');
+const ITEM_WIDTH = (width - SPACING.lg * 3) / 2;
 
-            <View style={styles.comingSoon}>
-                <Text style={styles.emoji}>🎬</Text>
-                <Text style={styles.comingSoonTitle}>Coming Soon</Text>
-                <View style={styles.featureList}>
-                    <Text style={styles.feature}>• Curated movie scenes</Text>
-                    <Text style={styles.feature}>• Filter by genre & difficulty</Text>
-                    <Text style={styles.feature}>• Search specific movies</Text>
-                    <Text style={styles.feature}>• Save to bucket list</Text>
-                    <Text style={styles.feature}>• View trending recreations</Text>
-                </View>
+export default function SceneLibraryScreen({ navigation }) {
+    const [movies, setMovies] = useState([]);
+    const [genres, setGenres] = useState([]);
+    const [selectedGenre, setSelectedGenre] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [page, setPage] = useState(1);
+
+    useEffect(() => {
+        loadInitialData();
+    }, []);
+
+    useEffect(() => {
+        if (searchQuery.length > 2) {
+            handleSearch();
+        } else if (searchQuery.length === 0) {
+            loadMovies();
+        }
+    }, [searchQuery]);
+
+    const loadInitialData = async () => {
+        try {
+            const [genresData, moviesData] = await Promise.all([
+                getGenres(),
+                getPopularMovies(1),
+            ]);
+            setGenres(genresData);
+            setMovies(moviesData.results);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error loading initial data:', error);
+            setLoading(false);
+        }
+    };
+
+    const loadMovies = async (genreId = null, pageNum = 1) => {
+        try {
+            setLoading(true);
+            const data = genreId
+                ? await getMoviesByGenre(genreId, pageNum)
+                : await getPopularMovies(pageNum);
+            
+            if (pageNum === 1) {
+                setMovies(data.results);
+            } else {
+                setMovies(prev => [...prev, ...data.results]);
+            }
+            setPage(pageNum);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error loading movies:', error);
+            setLoading(false);
+        }
+    };
+
+    const handleSearch = async () => {
+        try {
+            setLoading(true);
+            const data = await searchMovies(searchQuery, 1);
+            setMovies(data.results);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error searching movies:', error);
+            setLoading(false);
+        }
+    };
+
+    const handleGenreSelect = (genre) => {
+        setSelectedGenre(genre.id === selectedGenre ? null : genre.id);
+        setSearchQuery('');
+        loadMovies(genre.id === selectedGenre ? null : genre.id, 1);
+    };
+
+    const handleMoviePress = (movie) => {
+        navigation.navigate('MovieDetail', {
+            movieId: movie.id,
+            movieData: movie,
+        });
+    };
+
+    const handleLoadMore = () => {
+        if (!loading) {
+            loadMovies(selectedGenre, page + 1);
+        }
+    };
+
+    const renderMovieItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.movieCard}
+            onPress={() => handleMoviePress(item)}
+            activeOpacity={0.7}
+        >
+            <Image
+                source={{ uri: getImageUrl(item.poster_path, 'w342') }}
+                style={styles.poster}
+                resizeMode="cover"
+            />
+            <View style={styles.movieInfo}>
+                <Text style={styles.movieTitle} numberOfLines={2}>
+                    {item.title}
+                </Text>
+                <Text style={styles.movieYear}>
+                    {item.release_date?.substring(0, 4) || 'N/A'}
+                </Text>
+                {item.vote_average > 0 && (
+                    <View style={styles.ratingContainer}>
+                        <Ionicons name="star" size={12} color={COLORS.warning} />
+                        <Text style={styles.rating}>
+                            {item.vote_average.toFixed(1)}
+                        </Text>
+                    </View>
+                )}
             </View>
-        </ScrollView>
+        </TouchableOpacity>
+    );
+
+    const renderGenreChip = ({ item }) => (
+        <TouchableOpacity
+            style={[
+                styles.genreChip,
+                selectedGenre === item.id && styles.genreChipActive,
+            ]}
+            onPress={() => handleGenreSelect(item)}
+            activeOpacity={0.7}
+        >
+            <Text
+                style={[
+                    styles.genreChipText,
+                    selectedGenre === item.id && styles.genreChipTextActive,
+                ]}
+            >
+                {item.name}
+            </Text>
+        </TouchableOpacity>
+    );
+
+    return (
+        <View style={styles.container}>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+                <Ionicons
+                    name="search"
+                    size={20}
+                    color={COLORS.textMuted}
+                    style={styles.searchIcon}
+                />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search movies..."
+                    placeholderTextColor={COLORS.textMuted}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')}>
+                        <Ionicons name="close-circle" size={20} color={COLORS.textMuted} />
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {/* Genre Filters */}
+            <View style={styles.genresSection}>
+                <FlatList
+                    horizontal
+                    data={genres}
+                    renderItem={renderGenreChip}
+                    keyExtractor={(item) => item.id.toString()}
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.genresList}
+                />
+            </View>
+
+            {/* Movies Grid */}
+            {loading && movies.length === 0 ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={COLORS.accent} />
+                </View>
+            ) : (
+                <FlatList
+                    data={movies}
+                    renderItem={renderMovieItem}
+                    keyExtractor={(item) => item.id.toString()}
+                    numColumns={2}
+                    contentContainerStyle={styles.moviesGrid}
+                    columnWrapperStyle={styles.row}
+                    onEndReached={handleLoadMore}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        loading ? (
+                            <ActivityIndicator
+                                size="small"
+                                color={COLORS.accent}
+                                style={styles.loadingMore}
+                            />
+                        ) : null
+                    }
+                />
+            )}
+        </View>
     );
 }
 
@@ -31,46 +232,103 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
-    content: {
-        padding: SPACING.lg,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: COLORS.text,
-        marginBottom: SPACING.xs,
-        letterSpacing: -0.5,
-    },
-    subtitle: {
-        fontSize: FONTS.sizes.lg,
-        color: COLORS.textLight,
-        marginBottom: SPACING.xxl,
-    },
-    comingSoon: {
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.xxl,
+    searchContainer: {
+        flexDirection: 'row',
         alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        margin: SPACING.lg,
+        paddingHorizontal: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
         borderWidth: 1,
         borderColor: COLORS.border,
     },
-    emoji: {
-        fontSize: 64,
-        marginBottom: SPACING.lg,
+    searchIcon: {
+        marginRight: SPACING.sm,
     },
-    comingSoonTitle: {
-        fontSize: FONTS.sizes.xl,
-        fontWeight: '600',
+    searchInput: {
+        flex: 1,
+        paddingVertical: SPACING.md,
+        fontSize: FONTS.sizes.md,
         color: COLORS.text,
-        marginBottom: SPACING.xl,
     },
-    featureList: {
-        alignSelf: 'stretch',
+    genresSection: {
+        marginBottom: SPACING.md,
+    },
+    genresList: {
+        paddingHorizontal: SPACING.lg,
         gap: SPACING.sm,
     },
-    feature: {
+    genreChip: {
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    genreChipActive: {
+        backgroundColor: COLORS.accent,
+        borderColor: COLORS.accent,
+    },
+    genreChipText: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.text,
+        fontWeight: '500',
+    },
+    genreChipTextActive: {
+        color: COLORS.background,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    moviesGrid: {
+        paddingHorizontal: SPACING.lg,
+        paddingBottom: SPACING.lg,
+    },
+    row: {
+        justifyContent: 'space-between',
+        marginBottom: SPACING.md,
+    },
+    movieCard: {
+        width: ITEM_WIDTH,
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.lg,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    poster: {
+        width: '100%',
+        height: ITEM_WIDTH * 1.5,
+        backgroundColor: COLORS.border,
+    },
+    movieInfo: {
+        padding: SPACING.md,
+    },
+    movieTitle: {
         fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.text,
+        marginBottom: SPACING.xs,
+    },
+    movieYear: {
+        fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
-        lineHeight: 24,
+        marginBottom: SPACING.xs,
+    },
+    ratingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    rating: {
+        fontSize: FONTS.sizes.sm,
+        fontWeight: '600',
+        color: COLORS.text,
+    },
+    loadingMore: {
+        marginVertical: SPACING.lg,
     },
 });

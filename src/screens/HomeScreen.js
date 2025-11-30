@@ -1,28 +1,40 @@
-// Home Screen
-// Referenced in-class code
+// screens/HomeScreen.js - Updated Home Screen with Boards
 
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
-import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import { getUserStats, getAllMovieLocations } from '../utils/db';
+import React, { useState, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    RefreshControl,
+    Image,
+    Dimensions,
+} from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
+import { getUserStats } from '../utils/db';
+import { getTrendingMovies, getRomanceMovies, getImageUrl } from '../utils/tmdbApi';
+
+const { width } = Dimensions.get('window');
+const BOARD_WIDTH = (width - SPACING.lg * 3) / 2;
 
 export default function HomeScreen({ navigation }) {
     const [stats, setStats] = useState({
         scenes_recreated: 0,
         locations_visited: 0,
-        miles_traveled: 0,
-        days_active: 0,
     });
-    const [locations, setLocations] = useState([]);
+    const [boards, setBoards] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
 
-    const loadData = () => {
-        const userStats = getUserStats();
-        const allLocations = getAllMovieLocations();
-        setStats(userStats);
-        setLocations(allLocations);
-    };
+    // Define boards with categories
+    const BOARD_CATEGORIES = [
+        { id: 'trending', title: 'Trending', emoji: 'ðŸ”¥' },
+        { id: 'romance', title: 'Romance', emoji: 'ðŸ’•' },
+        { id: 'locations', title: 'Locations', emoji: 'ðŸ“' },
+        { id: 'recreations', title: 'Recreations', emoji: 'ðŸŽ¬' },
+    ];
 
     useFocusEffect(
         React.useCallback(() => {
@@ -30,15 +42,70 @@ export default function HomeScreen({ navigation }) {
         }, [])
     );
 
-    const onRefresh = React.useCallback(() => {
+    const loadData = async () => {
+        try {
+            const userStats = getUserStats();
+            setStats(userStats);
+
+            // Load board previews
+            const trendingData = await getTrendingMovies('week');
+            const romanceData = await getRomanceMovies(1);
+
+            const boardsData = [
+                {
+                    id: 'trending',
+                    title: 'Trending',
+                    emoji: 'ðŸ”¥',
+                    count: trendingData.results.length,
+                    preview: trendingData.results.slice(0, 4),
+                },
+                {
+                    id: 'romance',
+                    title: 'Romance',
+                    emoji: 'ðŸ’•',
+                    count: romanceData.results.length,
+                    preview: romanceData.results.slice(0, 4),
+                },
+                {
+                    id: 'locations',
+                    title: 'Locations',
+                    emoji: 'ðŸ“',
+                    count: 10, // From filming locations database
+                    preview: [],
+                },
+                {
+                    id: 'recreations',
+                    title: 'My Recreations',
+                    emoji: 'ðŸŽ¬',
+                    count: userStats.scenes_recreated || 0,
+                    preview: [],
+                },
+            ];
+
+            setBoards(boardsData);
+            setLoading(false);
+        } catch (error) {
+            console.error('Error loading home data:', error);
+            setLoading(false);
+        }
+    };
+
+    const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
-        loadData();
-        setTimeout(() => setRefreshing(false), 500);
+        await loadData();
+        setRefreshing(false);
     }, []);
 
+    const handleBoardPress = (board) => {
+        navigation.navigate('BoardDetail', { 
+            boardId: board.id,
+            boardTitle: board.title 
+        });
+    };
+
     return (
-        <ScrollView 
-            style={styles.container} 
+        <ScrollView
+            style={styles.container}
             contentContainerStyle={styles.content}
             refreshControl={
                 <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -46,8 +113,11 @@ export default function HomeScreen({ navigation }) {
         >
             {/* Hero Section */}
             <View style={styles.hero}>
-                <Text style={styles.greeting}>Discover</Text>
-                <Text style={styles.subtitle}>Movie locations near you</Text>
+                <Text style={styles.greeting}>Hi, Welcome!</Text>
+                <Text style={styles.subtitle}>recreate iconic moments</Text>
+                <Text style={styles.tagline}>
+                    Explore, travel and get getter in your galleries not just memories!
+                </Text>
             </View>
 
             {/* Stats Grid */}
@@ -61,53 +131,65 @@ export default function HomeScreen({ navigation }) {
                     <Text style={styles.statLabel}>Locations</Text>
                 </View>
                 <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{locations.length}</Text>
-                    <Text style={styles.statLabel}>Available</Text>
+                    <Text style={styles.statNumber}>{boards.length}</Text>
+                    <Text style={styles.statLabel}>Boards</Text>
                 </View>
             </View>
 
-            {/* Featured Challenge */}
-            {locations.length > 0 && (
-                <View style={styles.challengeCard}>
-                    <View style={styles.challengeHeader}>
-                        <Text style={styles.challengeBadge}>Featured</Text>
-                    </View>
-                    <Text style={styles.challengeTitle}>{locations[0].movie_title}</Text>
-                    <Text style={styles.challengeLocation}>{locations[0].location_name}</Text>
+            {/* Boards Grid */}
+            <View style={styles.boardsSection}>
+                <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Boards</Text>
+                    <Text style={styles.sectionSubtitle}>
+                        Tap on a board to view all ideas
+                    </Text>
                 </View>
-            )}
 
-            {/* Quick Actions */}
-            <View style={styles.actionsGrid}>
-                <TouchableOpacity
-                    style={styles.actionCard}
-                    onPress={() => navigation.navigate('Scenes')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.actionIcon}>🎬</Text>
-                    <Text style={styles.actionTitle}>Browse</Text>
-                    <Text style={styles.actionSubtitle}>Explore scenes</Text>
-                </TouchableOpacity>
+                <View style={styles.boardsGrid}>
+                    {boards.map((board) => (
+                        <TouchableOpacity
+                            key={board.id}
+                            style={styles.boardCard}
+                            onPress={() => handleBoardPress(board)}
+                            activeOpacity={0.7}
+                        >
+                            {/* Board Preview Grid */}
+                            <View style={styles.boardPreview}>
+                                {board.preview.length > 0 ? (
+                                    <View style={styles.previewGrid}>
+                                        {board.preview.slice(0, 4).map((movie, index) => (
+                                            <View
+                                                key={index}
+                                                style={styles.previewImageContainer}
+                                            >
+                                                <Image
+                                                    source={{
+                                                        uri: getImageUrl(movie.poster_path, 'w200'),
+                                                    }}
+                                                    style={styles.previewImage}
+                                                    resizeMode="cover"
+                                                />
+                                            </View>
+                                        ))}
+                                    </View>
+                                ) : (
+                                    <View style={styles.emptyPreview}>
+                                        <Text style={styles.emptyPreviewEmoji}>
+                                            {board.emoji}
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
 
-                <TouchableOpacity
-                    style={styles.actionCard}
-                    onPress={() => navigation.navigate('Camera')}
-                    activeOpacity={0.7}
-                >
-                    <Text style={styles.actionIcon}>📷</Text>
-                    <Text style={styles.actionTitle}>Capture</Text>
-                    <Text style={styles.actionSubtitle}>Take a photo</Text>
-                </TouchableOpacity>
+                            {/* Board Info */}
+                            <View style={styles.boardInfo}>
+                                <Text style={styles.boardTitle}>{board.title}</Text>
+                                <Text style={styles.boardCount}>{board.count} items</Text>
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+                </View>
             </View>
-
-            {/* Data Demo Link */}
-            <TouchableOpacity
-                style={styles.demoLink}
-                onPress={() => navigation.navigate('DataDemo')}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.demoText}>View Storage Demo →</Text>
-            </TouchableOpacity>
         </ScrollView>
     );
 }
@@ -128,11 +210,16 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: COLORS.text,
         marginBottom: SPACING.xs,
-        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: FONTS.sizes.lg,
         color: COLORS.textLight,
+        marginBottom: SPACING.xs,
+    },
+    tagline: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.textMuted,
+        lineHeight: 20,
     },
     statsContainer: {
         flexDirection: 'row',
@@ -158,72 +245,75 @@ const styles = StyleSheet.create({
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
     },
-    challengeCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.lg,
+    boardsSection: {
         marginBottom: SPACING.xl,
-        borderWidth: 1,
-        borderColor: COLORS.border,
     },
-    challengeHeader: {
-        marginBottom: SPACING.md,
+    sectionHeader: {
+        marginBottom: SPACING.lg,
     },
-    challengeBadge: {
-        alignSelf: 'flex-start',
-        backgroundColor: COLORS.accent,
-        color: COLORS.background,
-        fontSize: FONTS.sizes.xs,
-        fontWeight: '600',
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: SPACING.xs,
-        borderRadius: BORDER_RADIUS.sm,
-        overflow: 'hidden',
-    },
-    challengeTitle: {
+    sectionTitle: {
         fontSize: FONTS.sizes.xl,
         fontWeight: '600',
         color: COLORS.text,
         marginBottom: SPACING.xs,
     },
-    challengeLocation: {
-        fontSize: FONTS.sizes.md,
+    sectionSubtitle: {
+        fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
     },
-    actionsGrid: {
+    boardsGrid: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: SPACING.md,
-        marginBottom: SPACING.lg,
     },
-    actionCard: {
-        flex: 1,
+    boardCard: {
+        width: BOARD_WIDTH,
         backgroundColor: COLORS.surface,
         borderRadius: BORDER_RADIUS.lg,
-        padding: SPACING.lg,
-        alignItems: 'center',
+        overflow: 'hidden',
         borderWidth: 1,
         borderColor: COLORS.border,
     },
-    actionIcon: {
-        fontSize: 32,
-        marginBottom: SPACING.sm,
+    boardPreview: {
+        width: '100%',
+        height: BOARD_WIDTH,
+        backgroundColor: COLORS.background,
     },
-    actionTitle: {
+    previewGrid: {
+        flex: 1,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+    },
+    previewImageContainer: {
+        width: '50%',
+        height: '50%',
+        padding: 1,
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: COLORS.border,
+    },
+    emptyPreview: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+    },
+    emptyPreviewEmoji: {
+        fontSize: 48,
+    },
+    boardInfo: {
+        padding: SPACING.md,
+    },
+    boardTitle: {
         fontSize: FONTS.sizes.md,
         fontWeight: '600',
         color: COLORS.text,
         marginBottom: SPACING.xs,
     },
-    actionSubtitle: {
+    boardCount: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
-    },
-    demoLink: {
-        alignItems: 'center',
-        padding: SPACING.md,
-    },
-    demoText: {
-        fontSize: FONTS.sizes.sm,
-        color: COLORS.textMuted,
     },
 });
