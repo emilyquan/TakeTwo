@@ -1,4 +1,4 @@
-// App.js - Main Entry Point
+// App.js - Main Entry Point with Intro Screen
 
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
@@ -10,8 +10,10 @@ import { firebase_auth } from './src/utils/firebase';
 import { initDatabase } from './src/utils/db';
 import { COLORS } from './src/constants/themes';
 
-// Auth Screen
-import AuthScreen from './src/screens/AuthScreen';
+// Auth Screens
+import IntroScreen from './src/screens/IntroScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SignupScreen from './src/screens/SignupScreen';
 
 // Main Tab Screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -32,6 +34,7 @@ function MainTabs({ navigation }) {
     return (
         <Tab.Navigator
             screenOptions={({ route }) => ({
+                tabBarShowLabel: false,
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName;
                     switch (route.name) {
@@ -57,8 +60,8 @@ function MainTabs({ navigation }) {
                     borderTopColor: COLORS.border,
                     borderTopWidth: 1,
                     paddingBottom: 5,
-                    paddingTop: 5,
-                    height: 60,
+                    paddingTop: 10,
+                    height: 80,
                 },
                 tabBarLabelStyle: {
                     fontSize: 11,
@@ -89,12 +92,12 @@ function MainTabs({ navigation }) {
     );
 }
 
-// Root Stack Navigator
+// Root Stack Navigator for authenticated users
 function RootStack() {
     return (
         <Stack.Navigator>
             <Stack.Screen 
-                name="MainTabs" 
+                name="Back" 
                 component={MainTabs} 
                 options={{ headerShown: false }}
             />
@@ -129,6 +132,37 @@ function RootStack() {
     );
 }
 
+// Auth Stack Navigator for non-authenticated users
+function AuthStack() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Intro" component={IntroScreen} />
+            <Stack.Screen 
+                name="Login" 
+                component={LoginScreen}
+                options={{
+                    headerShown: true,
+                    title: '',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                    headerShadowVisible: false,
+                }}
+            />
+            <Stack.Screen 
+                name="Signup" 
+                component={SignupScreen}
+                options={{
+                    headerShown: true,
+                    title: '',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                    headerShadowVisible: false,
+                }}
+            />
+        </Stack.Navigator>
+    );
+}
+
 export default function App() {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -152,7 +186,7 @@ export default function App() {
 
     return (
         <NavigationContainer>
-            {user ? <RootStack /> : <AuthScreen />}
+            {user ? <RootStack /> : <AuthStack />}
         </NavigationContainer>
     );
 }

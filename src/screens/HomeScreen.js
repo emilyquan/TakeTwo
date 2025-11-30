@@ -1,4 +1,4 @@
-// screens/HomeScreen.js - Updated Home Screen with Boards
+// screens/HomeScreen.js - Updated Home Screen with User Name
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -14,12 +14,14 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
 import { getUserStats } from '../utils/db';
+import { getUserPreferences } from '../utils/storage';
 import { getTrendingMovies, getRomanceMovies, getImageUrl } from '../utils/tmdbApi';
 
 const { width } = Dimensions.get('window');
 const BOARD_WIDTH = (width - SPACING.lg * 3) / 2;
 
 export default function HomeScreen({ navigation }) {
+    const [userName, setUserName] = useState('');
     const [stats, setStats] = useState({
         scenes_recreated: 0,
         locations_visited: 0,
@@ -30,10 +32,10 @@ export default function HomeScreen({ navigation }) {
 
     // Define boards with categories
     const BOARD_CATEGORIES = [
-        { id: 'trending', title: 'Trending', emoji: 'ðŸ”¥' },
-        { id: 'romance', title: 'Romance', emoji: 'ðŸ’•' },
-        { id: 'locations', title: 'Locations', emoji: 'ðŸ“' },
-        { id: 'recreations', title: 'Recreations', emoji: 'ðŸŽ¬' },
+        { id: 'trending', title: 'Trending', emoji: '🔥' },
+        { id: 'romance', title: 'Romance', emoji: '💕' },
+        { id: 'locations', title: 'Locations', emoji: '📍' },
+        { id: 'recreations', title: 'Recreations', emoji: '🎬' },
     ];
 
     useFocusEffect(
@@ -44,6 +46,14 @@ export default function HomeScreen({ navigation }) {
 
     const loadData = async () => {
         try {
+            // Get user's name from storage
+            const preferences = await getUserPreferences();
+            if (preferences && preferences.fullName) {
+                setUserName(preferences.fullName);
+            } else if (preferences && preferences.firstName) {
+                setUserName(preferences.firstName);
+            }
+
             const userStats = getUserStats();
             setStats(userStats);
 
@@ -55,28 +65,28 @@ export default function HomeScreen({ navigation }) {
                 {
                     id: 'trending',
                     title: 'Trending',
-                    emoji: 'ðŸ”¥',
+                    emoji: '🔥',
                     count: trendingData.results.length,
                     preview: trendingData.results.slice(0, 4),
                 },
                 {
                     id: 'romance',
                     title: 'Romance',
-                    emoji: 'ðŸ’•',
+                    emoji: '💕',
                     count: romanceData.results.length,
                     preview: romanceData.results.slice(0, 4),
                 },
                 {
                     id: 'locations',
                     title: 'Locations',
-                    emoji: 'ðŸ“',
+                    emoji: '📍',
                     count: 10, // From filming locations database
                     preview: [],
                 },
                 {
                     id: 'recreations',
                     title: 'My Recreations',
-                    emoji: 'ðŸŽ¬',
+                    emoji: '🎬',
                     count: userStats.scenes_recreated || 0,
                     preview: [],
                 },
@@ -113,10 +123,12 @@ export default function HomeScreen({ navigation }) {
         >
             {/* Hero Section */}
             <View style={styles.hero}>
-                <Text style={styles.greeting}>Hi, Welcome!</Text>
+                <Text style={styles.greeting}>
+                    Hi, {userName || 'Welcome'}!
+                </Text>
                 <Text style={styles.subtitle}>recreate iconic moments</Text>
                 <Text style={styles.tagline}>
-                    Explore, travel and get getter in your galleries not just memories!
+                    Explore, travel and get better in your galleries not just memories!
                 </Text>
             </View>
 
@@ -129,10 +141,6 @@ export default function HomeScreen({ navigation }) {
                 <View style={styles.statCard}>
                     <Text style={styles.statNumber}>{stats.locations_visited || 0}</Text>
                     <Text style={styles.statLabel}>Locations</Text>
-                </View>
-                <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{boards.length}</Text>
-                    <Text style={styles.statLabel}>Boards</Text>
                 </View>
             </View>
 

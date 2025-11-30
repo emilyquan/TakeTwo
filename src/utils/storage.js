@@ -15,10 +15,16 @@ const KEYS = {
 
 // USER PREFERENCES
 
-// Save user preferences (theme, notification settings, etc.)
+// Save user preferences (theme, notification settings, name, etc.)
 export const saveUserPreferences = async (preferences) => {
     try {
-        await AsyncStorage.setItem(KEYS.USER_PREFERENCES, JSON.stringify(preferences));
+        // Get existing preferences
+        const existing = await getUserPreferences();
+        
+        // Merge with new preferences
+        const updated = { ...existing, ...preferences };
+        
+        await AsyncStorage.setItem(KEYS.USER_PREFERENCES, JSON.stringify(updated));
         return true;
     } catch (error) {
         console.error('Error saving user preferences:', error);
@@ -34,6 +40,9 @@ export const getUserPreferences = async () => {
             notificationsEnabled: true,
             theme: 'light',
             distanceUnit: 'km', // or 'miles'
+            firstName: '',
+            lastName: '',
+            fullName: '',
         };
     } catch (error) {
         console.error('Error getting user preferences:', error);
