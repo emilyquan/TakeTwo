@@ -5,7 +5,7 @@ export const COLORS = {
     // Primary palette
     primary: '#2C2C2C',          
     secondary: '#6B6B6B',        
-    accent: '#FF6B6B',        
+    accent: '#6b97ffff',        
     
     // UI colors
     background: '#FFFFFF',      
