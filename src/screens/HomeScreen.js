@@ -1,4 +1,4 @@
-// screens/HomeScreen.js - Updated Home Screen with User Name
+// screens/HomeScreen.js - Updated with Boards and Recreations Tabs
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,15 +10,17 @@ import {
     RefreshControl,
     Image,
     Dimensions,
+    FlatList,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import { getUserStats } from '../utils/db';
-import { getUserPreferences } from '../utils/storage';
-import { getTrendingMovies, getRomanceMovies, getImageUrl } from '../utils/tmdbApi';
+import { getUserStats, getAllRecreations } from '../utils/db';
+import { getUserPreferences, getUserBoards } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 const BOARD_WIDTH = (width - SPACING.lg * 3) / 2;
+const RECREATION_WIDTH = (width - SPACING.lg * 3) / 2;
 
 export default function HomeScreen({ navigation }) {
     const [userName, setUserName] = useState('');
@@ -26,17 +28,10 @@ export default function HomeScreen({ navigation }) {
         scenes_recreated: 0,
         locations_visited: 0,
     });
+    const [activeTab, setActiveTab] = useState('boards'); // 'boards' or 'recreations'
     const [boards, setBoards] = useState([]);
+    const [recreations, setRecreations] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
-    const [loading, setLoading] = useState(true);
-
-    // Define boards with categories
-    const BOARD_CATEGORIES = [
-        { id: 'trending', title: 'Trending', emoji: '🔥' },
-        { id: 'romance', title: 'Romance', emoji: '💕' },
-        { id: 'locations', title: 'Locations', emoji: '📍' },
-        { id: 'recreations', title: 'Recreations', emoji: '🎬' },
-    ];
 
     useFocusEffect(
         React.useCallback(() => {
@@ -54,49 +49,19 @@ export default function HomeScreen({ navigation }) {
                 setUserName(preferences.firstName);
             }
 
+            // Get user stats
             const userStats = getUserStats();
             setStats(userStats);
 
-            // Load board previews
-            const trendingData = await getTrendingMovies('week');
-            const romanceData = await getRomanceMovies(1);
+            // Load user's boards
+            const userBoards = await getUserBoards();
+            setBoards(userBoards);
 
-            const boardsData = [
-                {
-                    id: 'trending',
-                    title: 'Trending',
-                    emoji: '🔥',
-                    count: trendingData.results.length,
-                    preview: trendingData.results.slice(0, 4),
-                },
-                {
-                    id: 'romance',
-                    title: 'Romance',
-                    emoji: '💕',
-                    count: romanceData.results.length,
-                    preview: romanceData.results.slice(0, 4),
-                },
-                {
-                    id: 'locations',
-                    title: 'Locations',
-                    emoji: '📍',
-                    count: 10, // From filming locations database
-                    preview: [],
-                },
-                {
-                    id: 'recreations',
-                    title: 'My Recreations',
-                    emoji: '🎬',
-                    count: userStats.scenes_recreated || 0,
-                    preview: [],
-                },
-            ];
-
-            setBoards(boardsData);
-            setLoading(false);
+            // Load recreations
+            const userRecreations = getAllRecreations();
+            setRecreations(userRecreations);
         } catch (error) {
             console.error('Error loading home data:', error);
-            setLoading(false);
         }
     };
 
@@ -109,96 +74,184 @@ export default function HomeScreen({ navigation }) {
     const handleBoardPress = (board) => {
         navigation.navigate('BoardDetail', { 
             boardId: board.id,
-            boardTitle: board.title 
+            boardTitle: board.name,
+            boardItems: board.items || []
         });
     };
 
-    return (
-        <ScrollView
-            style={styles.container}
-            contentContainerStyle={styles.content}
-            refreshControl={
-                <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-            }
+    const handleCreateBoard = () => {
+        navigation.navigate('CreateBoard');
+    };
+
+    const handleRecreationPress = (recreation) => {
+        // Navigate to recreation detail or open image viewer
+        navigation.navigate('RecreationDetail', { recreation });
+    };
+
+    const renderBoardItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.boardCard}
+            onPress={() => handleBoardPress(item)}
+            activeOpacity={0.7}
         >
-            {/* Hero Section */}
-            <View style={styles.hero}>
-                <Text style={styles.greeting}>
-                    Hi, {userName || 'Welcome'}!
-                </Text>
-                <Text style={styles.subtitle}>recreate iconic moments</Text>
-                <Text style={styles.tagline}>
-                    Explore, travel and get better in your galleries not just memories!
+            <View style={styles.boardPreview}>
+                {item.items && item.items.length > 0 ? (
+                    <View style={styles.previewGrid}>
+                        {item.items.slice(0, 4).map((savedItem, index) => (
+                            <View key={index} style={styles.previewImageContainer}>
+                                <Image
+                                    source={{ uri: savedItem.imageUrl }}
+                                    style={styles.previewImage}
+                                    resizeMode="cover"
+                                />
+                            </View>
+                        ))}
+                    </View>
+                ) : (
+                    <View style={styles.emptyPreview}>
+                        <Ionicons name="folder-outline" size={48} color={COLORS.textMuted} />
+                    </View>
+                )}
+            </View>
+            <View style={styles.boardInfo}>
+                <Text style={styles.boardTitle} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.boardCount}>
+                    {item.items?.length || 0} items
                 </Text>
             </View>
+        </TouchableOpacity>
+    );
 
-            {/* Stats Grid */}
-            <View style={styles.statsContainer}>
-                <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{stats.scenes_recreated || 0}</Text>
-                    <Text style={styles.statLabel}>Scenes</Text>
-                </View>
-                <View style={styles.statCard}>
-                    <Text style={styles.statNumber}>{stats.locations_visited || 0}</Text>
-                    <Text style={styles.statLabel}>Locations</Text>
-                </View>
+    const renderRecreationItem = ({ item }) => (
+        <TouchableOpacity
+            style={styles.recreationCard}
+            onPress={() => handleRecreationPress(item)}
+            activeOpacity={0.7}
+        >
+            <Image
+                source={{ uri: item.photo_uri }}
+                style={styles.recreationImage}
+                resizeMode="cover"
+            />
+            <View style={styles.recreationOverlay}>
+                <Text style={styles.recreationTitle} numberOfLines={1}>
+                    {item.movie_title}
+                </Text>
+                <Text style={styles.recreationLocation} numberOfLines={1}>
+                    {item.location_name}
+                </Text>
             </View>
+        </TouchableOpacity>
+    );
 
-            {/* Boards Grid */}
-            <View style={styles.boardsSection}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Boards</Text>
-                    <Text style={styles.sectionSubtitle}>
-                        Tap on a board to view all ideas
+    const renderCreateBoardCard = () => (
+        <TouchableOpacity
+            style={[styles.boardCard, styles.createBoardCard]}
+            onPress={handleCreateBoard}
+            activeOpacity={0.7}
+        >
+            <View style={styles.createBoardContent}>
+                <Ionicons name="add-circle-outline" size={48} color={COLORS.accent} />
+                <Text style={styles.createBoardText}>Create Board</Text>
+            </View>
+        </TouchableOpacity>
+    );
+
+    return (
+        <View style={styles.container}>
+            <ScrollView
+                contentContainerStyle={styles.content}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+                }
+            >
+                {/* Hero Section */}
+                <View style={styles.hero}>
+                    <Text style={styles.greeting}>
+                        Hi, {userName || 'Welcome'}!
+                    </Text>
+                    <Text style={styles.subtitle}>recreate iconic moments</Text>
+                    <Text style={styles.tagline}>
+                        Explore, travel and get better in your galleries not just memories!
                     </Text>
                 </View>
 
-                <View style={styles.boardsGrid}>
-                    {boards.map((board) => (
-                        <TouchableOpacity
-                            key={board.id}
-                            style={styles.boardCard}
-                            onPress={() => handleBoardPress(board)}
-                            activeOpacity={0.7}
-                        >
-                            {/* Board Preview Grid */}
-                            <View style={styles.boardPreview}>
-                                {board.preview.length > 0 ? (
-                                    <View style={styles.previewGrid}>
-                                        {board.preview.slice(0, 4).map((movie, index) => (
-                                            <View
-                                                key={index}
-                                                style={styles.previewImageContainer}
-                                            >
-                                                <Image
-                                                    source={{
-                                                        uri: getImageUrl(movie.poster_path, 'w200'),
-                                                    }}
-                                                    style={styles.previewImage}
-                                                    resizeMode="cover"
-                                                />
-                                            </View>
-                                        ))}
-                                    </View>
-                                ) : (
-                                    <View style={styles.emptyPreview}>
-                                        <Text style={styles.emptyPreviewEmoji}>
-                                            {board.emoji}
-                                        </Text>
-                                    </View>
-                                )}
-                            </View>
-
-                            {/* Board Info */}
-                            <View style={styles.boardInfo}>
-                                <Text style={styles.boardTitle}>{board.title}</Text>
-                                <Text style={styles.boardCount}>{board.count} items</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ))}
+                {/* Stats Grid */}
+                <View style={styles.statsContainer}>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statNumber}>{stats.scenes_recreated || 0}</Text>
+                        <Text style={styles.statLabel}>Scenes</Text>
+                    </View>
+                    <View style={styles.statCard}>
+                        <Text style={styles.statNumber}>{stats.locations_visited || 0}</Text>
+                        <Text style={styles.statLabel}>Locations</Text>
+                    </View>
                 </View>
-            </View>
-        </ScrollView>
+
+                {/* Tabs */}
+                <View style={styles.tabsContainer}>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'boards' && styles.activeTab]}
+                        onPress={() => setActiveTab('boards')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'boards' && styles.activeTabText]}>
+                            Boards
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'recreations' && styles.activeTab]}
+                        onPress={() => setActiveTab('recreations')}
+                    >
+                        <Text style={[styles.tabText, activeTab === 'recreations' && styles.activeTabText]}>
+                            Recreations
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Tab Content */}
+                {activeTab === 'boards' ? (
+                    <View style={styles.tabContent}>
+                        <View style={styles.boardsGrid}>
+                            {renderCreateBoardCard()}
+                            {boards.map((board) => (
+                                <View key={board.id}>
+                                    {renderBoardItem({ item: board })}
+                                </View>
+                            ))}
+                        </View>
+                        {boards.length === 0 && (
+                            <View style={styles.emptyState}>
+                                <Text style={styles.emptyEmoji}>📁</Text>
+                                <Text style={styles.emptyTitle}>No boards yet</Text>
+                                <Text style={styles.emptyText}>
+                                    Create your first board to save movies and locations
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                ) : (
+                    <View style={styles.tabContent}>
+                        {recreations.length > 0 ? (
+                            <View style={styles.recreationsGrid}>
+                                {recreations.map((recreation) => (
+                                    <View key={recreation.id}>
+                                        {renderRecreationItem({ item: recreation })}
+                                    </View>
+                                ))}
+                            </View>
+                        ) : (
+                            <View style={styles.emptyState}>
+                                <Text style={styles.emptyEmoji}>🎬</Text>
+                                <Text style={styles.emptyTitle}>No recreations yet</Text>
+                                <Text style={styles.emptyText}>
+                                    Start recreating scenes and they'll appear here
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                )}
+            </ScrollView>
+        </View>
     );
 }
 
@@ -253,21 +306,32 @@ const styles = StyleSheet.create({
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
     },
-    boardsSection: {
-        marginBottom: SPACING.xl,
-    },
-    sectionHeader: {
+    tabsContainer: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.surface,
+        borderRadius: BORDER_RADIUS.md,
+        padding: 4,
         marginBottom: SPACING.lg,
     },
-    sectionTitle: {
-        fontSize: FONTS.sizes.xl,
-        fontWeight: '600',
-        color: COLORS.text,
-        marginBottom: SPACING.xs,
+    tab: {
+        flex: 1,
+        paddingVertical: SPACING.sm,
+        alignItems: 'center',
+        borderRadius: BORDER_RADIUS.sm,
     },
-    sectionSubtitle: {
-        fontSize: FONTS.sizes.sm,
+    activeTab: {
+        backgroundColor: COLORS.accent,
+    },
+    tabText: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
         color: COLORS.textLight,
+    },
+    activeTabText: {
+        color: COLORS.background,
+    },
+    tabContent: {
+        marginBottom: SPACING.xl,
     },
     boardsGrid: {
         flexDirection: 'row',
@@ -281,6 +345,20 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         borderWidth: 1,
         borderColor: COLORS.border,
+    },
+    createBoardCard: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: BOARD_WIDTH + 60,
+    },
+    createBoardContent: {
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    createBoardText: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.accent,
     },
     boardPreview: {
         width: '100%',
@@ -308,9 +386,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: COLORS.surface,
     },
-    emptyPreviewEmoji: {
-        fontSize: 48,
-    },
     boardInfo: {
         padding: SPACING.md,
     },
@@ -323,5 +398,60 @@ const styles = StyleSheet.create({
     boardCount: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+    },
+    recreationsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: SPACING.md,
+    },
+    recreationCard: {
+        width: RECREATION_WIDTH,
+        height: RECREATION_WIDTH * 1.3,
+        borderRadius: BORDER_RADIUS.lg,
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    recreationImage: {
+        width: '100%',
+        height: '100%',
+    },
+    recreationOverlay: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        padding: SPACING.md,
+    },
+    recreationTitle: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.background,
+        marginBottom: SPACING.xs,
+    },
+    recreationLocation: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.background,
+        opacity: 0.8,
+    },
+    emptyState: {
+        alignItems: 'center',
+        paddingVertical: SPACING.xxl,
+    },
+    emptyEmoji: {
+        fontSize: 64,
+        marginBottom: SPACING.lg,
+    },
+    emptyTitle: {
+        fontSize: FONTS.sizes.xl,
+        fontWeight: '600',
+        color: COLORS.text,
+        marginBottom: SPACING.sm,
+    },
+    emptyText: {
+        fontSize: FONTS.sizes.md,
+        color: COLORS.textLight,
+        textAlign: 'center',
     },
 });

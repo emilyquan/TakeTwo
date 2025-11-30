@@ -1,4 +1,4 @@
-// AppNavigator.js
+// AppNavigator.js - Updated with New Screens
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -17,9 +17,12 @@ import SceneLibraryScreen from '../screens/SceneLibraryScreen';
 import CameraScreen from '../screens/CameraScreen';
 import MapScreen from '../screens/MapScreen';
 
+// Detail Screens
 import BoardDetailScreen from '../screens/BoardDetailScreen';
 import MovieDetailScreen from '../screens/MovieDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import CreateBoardScreen from '../screens/CreateBoardScreen';
+import RecreationDetailScreen from '../screens/RecreationDetailScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -86,9 +89,49 @@ function RootNavigator() {
     return (
         <Stack.Navigator>
             <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
-            <Stack.Screen name="BoardDetail" component={BoardDetailScreen} />
-            <Stack.Screen name="MovieDetail" component={MovieDetailScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen 
+                name="BoardDetail" 
+                component={BoardDetailScreen}
+                options={{
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
+            <Stack.Screen 
+                name="MovieDetail" 
+                component={MovieDetailScreen}
+                options={{
+                    title: 'Movie Details',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
+            <Stack.Screen 
+                name="Settings" 
+                component={SettingsScreen}
+                options={{
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
+            <Stack.Screen 
+                name="CreateBoard" 
+                component={CreateBoardScreen}
+                options={{
+                    title: 'New Board',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
+            <Stack.Screen 
+                name="RecreationDetail" 
+                component={RecreationDetailScreen}
+                options={{
+                    title: 'Recreation',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
         </Stack.Navigator>
     );
 }

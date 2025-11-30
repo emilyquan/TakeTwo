@@ -1,4 +1,4 @@
-// screens/BoardDetailScreen.js - Board Detail View
+// screens/BoardDetailScreen.js - Updated Board Detail View
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,84 +10,45 @@ import {
     Image,
     ActivityIndicator,
     Dimensions,
+    Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import {
-    getTrendingMovies,
-    getRomanceMovies,
-    getImageUrl,
-} from '../utils/tmdbApi';
-import { getAllFilmingLocations } from '../utils/filmingLocations';
-import { getAllRecreations } from '../utils/db';
+import { getBoardById, removeItemFromBoard, deleteBoard } from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - SPACING.lg * 3) / 2;
 
 export default function BoardDetailScreen({ route, navigation }) {
     const { boardId, boardTitle } = route.params;
-    const [items, setItems] = useState([]);
+    const [board, setBoard] = useState(null);
     const [loading, setLoading] = useState(true);
 
+    useFocusEffect(
+        React.useCallback(() => {
+            loadBoardData();
+        }, [boardId])
+    );
+
     useEffect(() => {
-        navigation.setOptions({ title: boardTitle });
-        loadBoardData();
-    }, [boardId]);
+        navigation.setOptions({
+            title: boardTitle,
+            headerRight: () => (
+                <TouchableOpacity
+                    style={styles.headerButton}
+                    onPress={handleDeleteBoard}
+                >
+                    <Ionicons name="trash-outline" size={24} color={COLORS.error} />
+                </TouchableOpacity>
+            ),
+        });
+    }, [boardTitle]);
 
     const loadBoardData = async () => {
         try {
-            let data = [];
-
-            switch (boardId) {
-                case 'trending':
-                    const trendingData = await getTrendingMovies('week');
-                    data = trendingData.results.map(movie => ({
-                        id: movie.id,
-                        type: 'movie',
-                        title: movie.title,
-                        subtitle: movie.release_date?.substring(0, 4) || 'N/A',
-                        imageUrl: getImageUrl(movie.poster_path),
-                        data: movie,
-                    }));
-                    break;
-
-                case 'romance':
-                    const romanceData = await getRomanceMovies(1);
-                    data = romanceData.results.map(movie => ({
-                        id: movie.id,
-                        type: 'movie',
-                        title: movie.title,
-                        subtitle: movie.release_date?.substring(0, 4) || 'N/A',
-                        imageUrl: getImageUrl(movie.poster_path),
-                        data: movie,
-                    }));
-                    break;
-
-                case 'locations':
-                    const locations = getAllFilmingLocations();
-                    data = locations.map(loc => ({
-                        id: loc.id,
-                        type: 'location',
-                        title: loc.locationName,
-                        subtitle: `${loc.movieTitle} â€¢ ${loc.city}`,
-                        imageUrl: loc.imageUrl,
-                        data: loc,
-                    }));
-                    break;
-
-                case 'recreations':
-                    const recreations = getAllRecreations();
-                    data = recreations.map(rec => ({
-                        id: rec.id,
-                        type: 'recreation',
-                        title: rec.movie_title,
-                        subtitle: rec.location_name,
-                        imageUrl: rec.photo_uri,
-                        data: rec,
-                    }));
-                    break;
-            }
-
-            setItems(data);
+            const boardData = await getBoardById(boardId);
+            setBoard(boardData);
             setLoading(false);
         } catch (error) {
             console.error('Error loading board data:', error);
@@ -98,17 +59,60 @@ export default function BoardDetailScreen({ route, navigation }) {
     const handleItemPress = (item) => {
         if (item.type === 'movie') {
             navigation.navigate('MovieDetail', {
-                movieId: item.id,
-                movieData: item.data,
+                movieId: parseInt(item.id),
+            });
+        } else if (item.type === 'location') {
+            navigation.navigate('Map', {
+                selectedLocation: item.data,
             });
         }
-        // Handle other item types as needed
+    };
+
+    const handleRemoveItem = async (item) => {
+        Alert.alert(
+            'Remove Item',
+            `Remove "${item.title}" from this board?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const success = await removeItemFromBoard(boardId, item.id, item.type);
+                        if (success) {
+                            loadBoardData();
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const handleDeleteBoard = () => {
+        Alert.alert(
+            'Delete Board',
+            `Delete "${boardTitle}"? This will remove all saved items.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const success = await deleteBoard(boardId);
+                        if (success) {
+                            navigation.goBack();
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const renderItem = ({ item }) => (
         <TouchableOpacity
             style={styles.itemCard}
             onPress={() => handleItemPress(item)}
+            onLongPress={() => handleRemoveItem(item)}
             activeOpacity={0.7}
         >
             <View style={styles.imageContainer}>
@@ -120,7 +124,11 @@ export default function BoardDetailScreen({ route, navigation }) {
                     />
                 ) : (
                     <View style={[styles.itemImage, styles.placeholderImage]}>
-                        <Text style={styles.placeholderText}>ðŸŽ¬</Text>
+                        <Ionicons
+                            name={item.type === 'movie' ? 'film' : 'location'}
+                            size={48}
+                            color={COLORS.textMuted}
+                        />
                     </View>
                 )}
             </View>
@@ -128,9 +136,19 @@ export default function BoardDetailScreen({ route, navigation }) {
                 <Text style={styles.itemTitle} numberOfLines={2}>
                     {item.title}
                 </Text>
-                <Text style={styles.itemSubtitle} numberOfLines={1}>
-                    {item.subtitle}
-                </Text>
+                {item.year && (
+                    <Text style={styles.itemSubtitle}>
+                        {item.year}
+                    </Text>
+                )}
+                {item.rating && (
+                    <View style={styles.ratingContainer}>
+                        <Ionicons name="star" size={12} color={COLORS.warning} />
+                        <Text style={styles.rating}>
+                            {item.rating.toFixed(1)}
+                        </Text>
+                    </View>
+                )}
             </View>
         </TouchableOpacity>
     );
@@ -143,11 +161,19 @@ export default function BoardDetailScreen({ route, navigation }) {
         );
     }
 
+    if (!board) {
+        return (
+            <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>Board not found</Text>
+            </View>
+        );
+    }
+
     return (
         <View style={styles.container}>
-            {items.length > 0 ? (
+            {board.items && board.items.length > 0 ? (
                 <FlatList
-                    data={items}
+                    data={board.items}
                     renderItem={renderItem}
                     keyExtractor={(item) => `${item.type}-${item.id}`}
                     numColumns={2}
@@ -157,10 +183,10 @@ export default function BoardDetailScreen({ route, navigation }) {
                 />
             ) : (
                 <View style={styles.emptyState}>
-                    <Text style={styles.emptyEmoji}>ðŸ“‹</Text>
-                    <Text style={styles.emptyTitle}>No items yet</Text>
+                    <Text style={styles.emptyEmoji}>📁</Text>
+                    <Text style={styles.emptyTitle}>Board is empty</Text>
                     <Text style={styles.emptyText}>
-                        Start exploring and add items to this board!
+                        Save movies or locations to see them here
                     </Text>
                 </View>
             )}
@@ -178,6 +204,19 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: COLORS.background,
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: SPACING.xl,
+    },
+    errorText: {
+        fontSize: FONTS.sizes.md,
+        color: COLORS.textLight,
+    },
+    headerButton: {
+        marginRight: SPACING.md,
     },
     listContent: {
         padding: SPACING.lg,
@@ -208,9 +247,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: COLORS.surface,
     },
-    placeholderText: {
-        fontSize: 48,
-    },
     itemInfo: {
         padding: SPACING.md,
     },
@@ -223,6 +259,17 @@ const styles = StyleSheet.create({
     itemSubtitle: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+        marginBottom: SPACING.xs,
+    },
+    ratingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.xs,
+    },
+    rating: {
+        fontSize: FONTS.sizes.sm,
+        fontWeight: '600',
+        color: COLORS.text,
     },
     emptyState: {
         flex: 1,

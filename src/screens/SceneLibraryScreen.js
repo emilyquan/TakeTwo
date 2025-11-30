@@ -1,6 +1,6 @@
-// screens/SceneLibraryScreen.js - Updated Scene Library
+// screens/SceneLibraryScreen.js - Updated with Search History
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -21,6 +21,11 @@ import {
     searchMovies,
     getImageUrl,
 } from '../utils/tmdbApi';
+import {
+    addRecentSearch,
+    getRecentSearches,
+    clearRecentSearches,
+} from '../utils/storage';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - SPACING.lg * 3) / 2;
@@ -32,9 +37,13 @@ export default function SceneLibraryScreen({ navigation }) {
     const [searchQuery, setSearchQuery] = useState('');
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
+    const [showSearchHistory, setShowSearchHistory] = useState(false);
+    const [recentSearches, setRecentSearches] = useState([]);
+    const searchInputRef = useRef(null);
 
     useEffect(() => {
         loadInitialData();
+        loadRecentSearches();
     }, []);
 
     useEffect(() => {
@@ -42,6 +51,7 @@ export default function SceneLibraryScreen({ navigation }) {
             handleSearch();
         } else if (searchQuery.length === 0) {
             loadMovies();
+            setShowSearchHistory(false);
         }
     }, [searchQuery]);
 
@@ -58,6 +68,11 @@ export default function SceneLibraryScreen({ navigation }) {
             console.error('Error loading initial data:', error);
             setLoading(false);
         }
+    };
+
+    const loadRecentSearches = async () => {
+        const searches = await getRecentSearches();
+        setRecentSearches(searches);
     };
 
     const loadMovies = async (genreId = null, pageNum = 1) => {
@@ -85,16 +100,38 @@ export default function SceneLibraryScreen({ navigation }) {
             setLoading(true);
             const data = await searchMovies(searchQuery, 1);
             setMovies(data.results);
+            
+            // Save to recent searches
+            await addRecentSearch(searchQuery);
+            await loadRecentSearches();
+            
             setLoading(false);
+            setShowSearchHistory(false);
         } catch (error) {
             console.error('Error searching movies:', error);
             setLoading(false);
         }
     };
 
+    const handleSearchFocus = () => {
+        setShowSearchHistory(true);
+        loadRecentSearches();
+    };
+
+    const handleRecentSearchPress = (search) => {
+        setSearchQuery(search);
+        setShowSearchHistory(false);
+    };
+
+    const handleClearSearchHistory = async () => {
+        await clearRecentSearches();
+        setRecentSearches([]);
+    };
+
     const handleGenreSelect = (genre) => {
         setSelectedGenre(genre.id === selectedGenre ? null : genre.id);
         setSearchQuery('');
+        setShowSearchHistory(false);
         loadMovies(genre.id === selectedGenre ? null : genre.id, 1);
     };
 
@@ -172,11 +209,13 @@ export default function SceneLibraryScreen({ navigation }) {
                     style={styles.searchIcon}
                 />
                 <TextInput
+                    ref={searchInputRef}
                     style={styles.searchInput}
                     placeholder="Search movies..."
                     placeholderTextColor={COLORS.textMuted}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
+                    onFocus={handleSearchFocus}
                 />
                 {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -185,43 +224,70 @@ export default function SceneLibraryScreen({ navigation }) {
                 )}
             </View>
 
+            {/* Search History Dropdown */}
+            {showSearchHistory && recentSearches.length > 0 && (
+                <View style={styles.searchHistoryContainer}>
+                    <View style={styles.searchHistoryHeader}>
+                        <Text style={styles.searchHistoryTitle}>Recent Searches</Text>
+                        <TouchableOpacity onPress={handleClearSearchHistory}>
+                            <Text style={styles.clearHistoryText}>Clear</Text>
+                        </TouchableOpacity>
+                    </View>
+                    {recentSearches.map((search, index) => (
+                        <TouchableOpacity
+                            key={index}
+                            style={styles.searchHistoryItem}
+                            onPress={() => handleRecentSearchPress(search)}
+                        >
+                            <Ionicons name="time-outline" size={20} color={COLORS.textMuted} />
+                            <Text style={styles.searchHistoryText}>{search}</Text>
+                            <Ionicons name="arrow-forward" size={16} color={COLORS.textMuted} />
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
+
             {/* Genre Filters */}
-            <View style={styles.genresSection}>
-                <FlatList
-                    horizontal
-                    data={genres}
-                    renderItem={renderGenreChip}
-                    keyExtractor={(item) => item.id.toString()}
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.genresList}
-                />
-            </View>
+            {!showSearchHistory && (
+                <View style={styles.genresSection}>
+                    <FlatList
+                        horizontal
+                        data={genres}
+                        renderItem={renderGenreChip}
+                        keyExtractor={(item) => item.id.toString()}
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.genresList}
+                    />
+                </View>
+            )}
 
             {/* Movies Grid */}
-            {loading && movies.length === 0 ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={COLORS.accent} />
-                </View>
-            ) : (
-                <FlatList
-                    data={movies}
-                    renderItem={renderMovieItem}
-                    keyExtractor={(item) => item.id.toString()}
-                    numColumns={2}
-                    contentContainerStyle={styles.moviesGrid}
-                    columnWrapperStyle={styles.row}
-                    onEndReached={handleLoadMore}
-                    onEndReachedThreshold={0.5}
-                    ListFooterComponent={
-                        loading ? (
-                            <ActivityIndicator
-                                size="small"
-                                color={COLORS.accent}
-                                style={styles.loadingMore}
-                            />
-                        ) : null
-                    }
-                />
+            {!showSearchHistory && (
+                loading && movies.length === 0 ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={COLORS.accent} />
+                    </View>
+                ) : (
+                    <FlatList
+                        data={movies}
+                        renderItem={renderMovieItem}
+                        keyExtractor={(item) => item.id.toString()}
+                        numColumns={2}
+                        contentContainerStyle={styles.moviesGrid}
+                        columnWrapperStyle={styles.row}
+                        onEndReached={handleLoadMore}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={
+                            loading ? (
+                                <ActivityIndicator
+                                    size="small"
+                                    color={COLORS.accent}
+                                    style={styles.loadingMore}
+                                />
+                            ) : null
+                        }
+                    />
+                )
             )}
         </View>
     );
@@ -248,6 +314,46 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         paddingVertical: SPACING.md,
+        fontSize: FONTS.sizes.md,
+        color: COLORS.text,
+    },
+    searchHistoryContainer: {
+        backgroundColor: COLORS.surface,
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        maxHeight: 300,
+    },
+    searchHistoryHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    searchHistoryTitle: {
+        fontSize: FONTS.sizes.sm,
+        fontWeight: '600',
+        color: COLORS.textLight,
+    },
+    clearHistoryText: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.accent,
+        fontWeight: '600',
+    },
+    searchHistoryItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: SPACING.md,
+        gap: SPACING.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    searchHistoryText: {
+        flex: 1,
         fontSize: FONTS.sizes.md,
         color: COLORS.text,
     },

@@ -1,6 +1,5 @@
-// Storage
-// AsyncStorage utilities for simple data (user preferences, settings, recent searches)
-// Referenced in-class code
+// Storage - Updated with Board Management
+// AsyncStorage utilities for simple data (user preferences, settings, recent searches, boards)
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -11,19 +10,15 @@ const KEYS = {
     APP_SETTINGS: 'appSettings',
     LAST_LOCATION: 'lastLocation',
     ONBOARDING_COMPLETED: 'onboardingCompleted',
+    USER_BOARDS: 'userBoards',
 };
 
 // USER PREFERENCES
 
-// Save user preferences (theme, notification settings, name, etc.)
 export const saveUserPreferences = async (preferences) => {
     try {
-        // Get existing preferences
         const existing = await getUserPreferences();
-        
-        // Merge with new preferences
         const updated = { ...existing, ...preferences };
-        
         await AsyncStorage.setItem(KEYS.USER_PREFERENCES, JSON.stringify(updated));
         return true;
     } catch (error) {
@@ -32,14 +27,13 @@ export const saveUserPreferences = async (preferences) => {
     }
 };
 
-// Get user preferences
 export const getUserPreferences = async () => {
     try {
         const preferences = await AsyncStorage.getItem(KEYS.USER_PREFERENCES);
         return preferences ? JSON.parse(preferences) : {
             notificationsEnabled: true,
             theme: 'light',
-            distanceUnit: 'km', // or 'miles'
+            distanceUnit: 'km',
             firstName: '',
             lastName: '',
             fullName: '',
@@ -50,9 +44,142 @@ export const getUserPreferences = async () => {
     }
 };
 
+// USER BOARDS
+
+// Create a new board
+export const createBoard = async (boardName) => {
+    try {
+        const boards = await getUserBoards();
+        const newBoard = {
+            id: Date.now().toString(),
+            name: boardName,
+            items: [],
+            createdAt: new Date().toISOString(),
+        };
+        boards.push(newBoard);
+        await AsyncStorage.setItem(KEYS.USER_BOARDS, JSON.stringify(boards));
+        return newBoard;
+    } catch (error) {
+        console.error('Error creating board:', error);
+        return null;
+    }
+};
+
+// Get all user boards
+export const getUserBoards = async () => {
+    try {
+        const boards = await AsyncStorage.getItem(KEYS.USER_BOARDS);
+        return boards ? JSON.parse(boards) : [];
+    } catch (error) {
+        console.error('Error getting user boards:', error);
+        return [];
+    }
+};
+
+// Get a specific board by ID
+export const getBoardById = async (boardId) => {
+    try {
+        const boards = await getUserBoards();
+        return boards.find(board => board.id === boardId);
+    } catch (error) {
+        console.error('Error getting board:', error);
+        return null;
+    }
+};
+
+// Add item to board
+export const addItemToBoard = async (boardId, item) => {
+    try {
+        const boards = await getUserBoards();
+        const boardIndex = boards.findIndex(b => b.id === boardId);
+        
+        if (boardIndex === -1) return false;
+        
+        // Check if item already exists in board
+        const itemExists = boards[boardIndex].items.some(
+            i => i.id === item.id && i.type === item.type
+        );
+        
+        if (!itemExists) {
+            boards[boardIndex].items.push({
+                ...item,
+                addedAt: new Date().toISOString(),
+            });
+            await AsyncStorage.setItem(KEYS.USER_BOARDS, JSON.stringify(boards));
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Error adding item to board:', error);
+        return false;
+    }
+};
+
+// Remove item from board
+export const removeItemFromBoard = async (boardId, itemId, itemType) => {
+    try {
+        const boards = await getUserBoards();
+        const boardIndex = boards.findIndex(b => b.id === boardId);
+        
+        if (boardIndex === -1) return false;
+        
+        boards[boardIndex].items = boards[boardIndex].items.filter(
+            item => !(item.id === itemId && item.type === itemType)
+        );
+        
+        await AsyncStorage.setItem(KEYS.USER_BOARDS, JSON.stringify(boards));
+        return true;
+    } catch (error) {
+        console.error('Error removing item from board:', error);
+        return false;
+    }
+};
+
+// Delete a board
+export const deleteBoard = async (boardId) => {
+    try {
+        const boards = await getUserBoards();
+        const filteredBoards = boards.filter(board => board.id !== boardId);
+        await AsyncStorage.setItem(KEYS.USER_BOARDS, JSON.stringify(filteredBoards));
+        return true;
+    } catch (error) {
+        console.error('Error deleting board:', error);
+        return false;
+    }
+};
+
+// Rename a board
+export const renameBoard = async (boardId, newName) => {
+    try {
+        const boards = await getUserBoards();
+        const boardIndex = boards.findIndex(b => b.id === boardId);
+        
+        if (boardIndex === -1) return false;
+        
+        boards[boardIndex].name = newName;
+        await AsyncStorage.setItem(KEYS.USER_BOARDS, JSON.stringify(boards));
+        return true;
+    } catch (error) {
+        console.error('Error renaming board:', error);
+        return false;
+    }
+};
+
+// Check if item is saved in any board
+export const isItemSaved = async (itemId, itemType) => {
+    try {
+        const boards = await getUserBoards();
+        return boards.some(board => 
+            board.items.some(item => item.id === itemId && item.type === itemType)
+        );
+    } catch (error) {
+        console.error('Error checking if item is saved:', error);
+        return false;
+    }
+};
+
 // RECENT SEARCHES
 
-// Add a search term to recent searches (max 10)
 export const addRecentSearch = async (searchTerm) => {
     try {
         const existing = await AsyncStorage.getItem(KEYS.RECENT_SEARCHES);
@@ -75,7 +202,6 @@ export const addRecentSearch = async (searchTerm) => {
     }
 };
 
-// Get recent searches
 export const getRecentSearches = async () => {
     try {
         const searches = await AsyncStorage.getItem(KEYS.RECENT_SEARCHES);
@@ -86,7 +212,6 @@ export const getRecentSearches = async () => {
     }
 };
 
-// Clear recent searches
 export const clearRecentSearches = async () => {
     try {
         await AsyncStorage.removeItem(KEYS.RECENT_SEARCHES);
@@ -99,7 +224,6 @@ export const clearRecentSearches = async () => {
 
 // SETTINGS 
 
-// Save app settings
 export const saveAppSettings = async (settings) => {
     try {
         await AsyncStorage.setItem(KEYS.APP_SETTINGS, JSON.stringify(settings));
@@ -110,7 +234,6 @@ export const saveAppSettings = async (settings) => {
     }
 };
 
-// Get app settings
 export const getAppSettings = async () => {
     try {
         const settings = await AsyncStorage.getItem(KEYS.APP_SETTINGS);
@@ -127,7 +250,6 @@ export const getAppSettings = async () => {
 
 // LAST LOCATION
 
-// Save user's last known location
 export const saveLastLocation = async (location) => {
     try {
         await AsyncStorage.setItem(KEYS.LAST_LOCATION, JSON.stringify(location));
@@ -138,7 +260,6 @@ export const saveLastLocation = async (location) => {
     }
 };
 
-// Get user's last known location
 export const getLastLocation = async () => {
     try {
         const location = await AsyncStorage.getItem(KEYS.LAST_LOCATION);
@@ -151,7 +272,6 @@ export const getLastLocation = async () => {
 
 // ONBOARDING
 
-// Mark onboarding as completed
 export const setOnboardingCompleted = async () => {
     try {
         await AsyncStorage.setItem(KEYS.ONBOARDING_COMPLETED, 'true');
@@ -162,7 +282,6 @@ export const setOnboardingCompleted = async () => {
     }
 };
 
-// Check if onboarding is completed
 export const isOnboardingCompleted = async () => {
     try {
         const completed = await AsyncStorage.getItem(KEYS.ONBOARDING_COMPLETED);
@@ -175,7 +294,6 @@ export const isOnboardingCompleted = async () => {
 
 // CLEAR ALL DATA
 
-// Clear all AsyncStorage data (useful for debugging or logout)
 export const clearAllStorage = async () => {
     try {
         await AsyncStorage.clear();
@@ -186,7 +304,6 @@ export const clearAllStorage = async () => {
     }
 };
 
-// Get all keys in AsyncStorage (for debugging)
 export const getAllKeys = async () => {
     try {
         return await AsyncStorage.getAllKeys();
