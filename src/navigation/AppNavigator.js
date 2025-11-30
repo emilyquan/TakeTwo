@@ -1,26 +1,37 @@
-// App Navigation
-
+// AppNavigator.js
 import React from 'react';
+import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
+import { COLORS } from '../constants/themes';
+
+// Auth Screens
+import IntroScreen from '../screens/IntroScreen';
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignUpScreen';
+
+// Main Screens
 import HomeScreen from '../screens/HomeScreen';
 import SceneLibraryScreen from '../screens/SceneLibraryScreen';
 import CameraScreen from '../screens/CameraScreen';
-import DataDemoScreen from '../screens/DataDemoScreen';
-import ProfileScreen from '../screens/ProfileScreen';
+import MapScreen from '../screens/MapScreen';
 
-import { COLORS } from '../constants/themes';
+import BoardDetailScreen from '../screens/BoardDetailScreen';
+import MovieDetailScreen from '../screens/MovieDetailScreen';
+import SettingsScreen from '../screens/SettingsScreen';
 
+const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-export default function AppNavigator() {
+// ---------- Main Tabs ----------
+function MainTabs({ navigation }) {
     return (
         <Tab.Navigator
             screenOptions={({ route }) => ({
+                tabBarShowLabel: false,
                 tabBarIcon: ({ focused, color, size }) => {
                     let iconName;
-
                     switch (route.name) {
                         case 'Home':
                             iconName = focused ? 'home' : 'home-outline';
@@ -31,16 +42,10 @@ export default function AppNavigator() {
                         case 'Camera':
                             iconName = focused ? 'camera' : 'camera-outline';
                             break;
-                        case 'Data':
-                            iconName = focused ? 'server' : 'server-outline';
+                        case 'Map':
+                            iconName = focused ? 'map' : 'map-outline';
                             break;
-                        case 'Profile':
-                            iconName = focused ? 'person' : 'person-outline';
-                            break;
-                        default:
-                            iconName = 'help-outline';
                     }
-
                     return <Ionicons name={iconName} size={size} color={color} />;
                 },
                 tabBarActiveTintColor: COLORS.accent,
@@ -50,52 +55,53 @@ export default function AppNavigator() {
                     borderTopColor: COLORS.border,
                     borderTopWidth: 1,
                     paddingBottom: 5,
-                    paddingTop: 5,
-                    height: 60,
-                },
-                tabBarLabelStyle: {
-                    fontSize: 11,
-                    fontWeight: '600',
+                    paddingTop: 10,
+                    height: 80,
                 },
                 headerStyle: {
                     backgroundColor: COLORS.background,
-                    borderBottomWidth: 1,
-                    borderBottomColor: COLORS.border,
-                    elevation: 0,
-                    shadowOpacity: 0,
                 },
                 headerTintColor: COLORS.text,
-                headerTitleStyle: {
-                    fontWeight: '700',
-                    fontSize: 18,
-                },
+                headerRight: () => (
+                    <Ionicons
+                        name="settings-outline"
+                        size={24}
+                        color={COLORS.text}
+                        style={{ marginRight: 16 }}
+                        onPress={() => navigation.navigate('Settings')}
+                    />
+                ),
             })}
         >
-            <Tab.Screen
-                name="Home"
-                component={HomeScreen}
-                options={{ title: 'Home' }}
-            />
-            <Tab.Screen
-                name="Scenes"
-                component={SceneLibraryScreen}
-                options={{ title: 'Scenes' }}
-            />
-            <Tab.Screen
-                name="Camera"
-                component={CameraScreen}
-                options={{ title: 'Camera' }}
-            />
-            <Tab.Screen
-                name="Data"
-                component={DataDemoScreen}
-                options={{ title: 'Data' }}
-            />
-            <Tab.Screen
-                name="Profile"
-                component={ProfileScreen}
-                options={{ title: 'Profile' }}
-            />
+            <Tab.Screen name="Home" component={HomeScreen} />
+            <Tab.Screen name="Scenes" component={SceneLibraryScreen} />
+            <Tab.Screen name="Camera" component={CameraScreen} />
+            <Tab.Screen name="Map" component={MapScreen} />
         </Tab.Navigator>
     );
 }
+
+// ---------- Root Stack for logged-in users ----------
+function RootNavigator() {
+    return (
+        <Stack.Navigator>
+            <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="BoardDetail" component={BoardDetailScreen} />
+            <Stack.Screen name="MovieDetail" component={MovieDetailScreen} />
+            <Stack.Screen name="Settings" component={SettingsScreen} />
+        </Stack.Navigator>
+    );
+}
+
+// ---------- Auth stack ----------
+function AuthNavigator() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="Intro" component={IntroScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Signup" component={SignupScreen} />
+        </Stack.Navigator>
+    );
+}
+
+export { RootNavigator, AuthNavigator };
