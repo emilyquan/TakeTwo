@@ -1,7 +1,5 @@
-// Camera Screen
+// Camera Screen - FIXED VERSION
 // https://docs.expo.dev/versions/latest/sdk/camera/
-// https://www.npmjs.com/package/react-native-image-picker
-// https://docs.expo.dev/versions/latest/sdk/media-library/
 
 import React, { useState, useRef, useEffect } from 'react';
 import {
@@ -21,7 +19,8 @@ import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import { saveRecreation, getAllMovieLocations } from '../utils/db';
+import { saveRecreation, getMovieLocationById, addMovieLocation } from '../utils/db';
+import { getAllFilmingLocations } from '../utils/filmingLocations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,7 +39,7 @@ export default function CameraScreen() {
     const cameraRef = useRef(null);
 
     useEffect(() => {
-        const allLocations = getAllMovieLocations();
+        const allLocations = getAllFilmingLocations();
         setLocations(allLocations);
     }, []);
 
@@ -113,6 +112,37 @@ export default function CameraScreen() {
         }
     };
 
+    // FIXED: Ensure location exists in database before saving recreation
+    const ensureLocationInDatabase = async (location) => {
+        try {
+            // Check if location already exists in the database
+            const existingLocation = getMovieLocationById(location.id);
+            
+            if (existingLocation) {
+                return existingLocation.id;
+            }
+            
+            // If not, add it to the database
+            const locationData = {
+                movieTitle: location.movieTitle,
+                sceneDescription: location.sceneDescription,
+                locationName: location.locationName,
+                address: location.address,
+                latitude: location.latitude,
+                longitude: location.longitude,
+                genre: location.tags ? location.tags[0] : null,
+                difficulty: location.difficulty,
+                imageUrl: location.imageUrl,
+            };
+            
+            const newLocationId = addMovieLocation(locationData);
+            return newLocationId;
+        } catch (error) {
+            console.error('Error ensuring location in database:', error);
+            return null;
+        }
+    };
+
     const savePhoto = async () => {
         if (!capturedPhoto) return;
 
@@ -125,19 +155,45 @@ export default function CameraScreen() {
                 }
             }
 
+            // Save to device gallery
             await MediaLibrary.saveToLibraryAsync(capturedPhoto);
 
             if (selectedLocation) {
-                saveRecreation(selectedLocation.id, capturedPhoto, null, 'Scene recreation');
-                Alert.alert('Saved', `Linked to ${selectedLocation.movie_title}`, [
-                    { text: 'OK', onPress: resetCamera }
-                ]);
+                // FIXED: Ensure the location exists in the database
+                const locationId = await ensureLocationInDatabase(selectedLocation);
+                
+                if (locationId) {
+                    // Save the recreation with the correct location_id
+                    const recreationId = saveRecreation(
+                        locationId, 
+                        capturedPhoto, 
+                        null, 
+                        'Scene recreation'
+                    );
+                    
+                    if (recreationId) {
+                        Alert.alert(
+                            'Success!', 
+                            `Photo saved and linked to ${selectedLocation.movieTitle}`,
+                            [{ text: 'OK', onPress: resetCamera }]
+                        );
+                    } else {
+                        Alert.alert('Saved', 'Photo saved to gallery, but failed to link to location', [
+                            { text: 'OK', onPress: resetCamera }
+                        ]);
+                    }
+                } else {
+                    Alert.alert('Saved', 'Photo saved to gallery', [
+                        { text: 'OK', onPress: resetCamera }
+                    ]);
+                }
             } else {
                 Alert.alert('Saved', 'Photo saved to gallery', [
                     { text: 'OK', onPress: resetCamera }
                 ]);
             }
         } catch (error) {
+            console.error('Error saving photo:', error);
             Alert.alert('Error', 'Failed to save photo');
         }
     };
@@ -174,7 +230,7 @@ export default function CameraScreen() {
                             <View style={styles.topBar}>
                                 <View style={styles.locationBadge}>
                                     <Text style={styles.locationBadgeText}>
-                                        {selectedLocation.movie_title}
+                                        {selectedLocation.movieTitle}
                                     </Text>
                                 </View>
                             </View>
@@ -283,14 +339,14 @@ export default function CameraScreen() {
                                         ]}
                                         onPress={() => selectLocation(location)}
                                     >
-                                        <Text style={styles.locationMovie}>{location.movie_title}</Text>
-                                        <Text style={styles.locationName}>{location.location_name}</Text>
+                                        <Text style={styles.locationMovie}>{location.movieTitle}</Text>
+                                        <Text style={styles.locationName}>{location.locationName}</Text>
                                     </TouchableOpacity>
                                 ))
                             ) : (
                                 <View style={styles.emptyState}>
                                     <Text style={styles.emptyText}>
-                                        No locations yet. Add some in the Data tab.
+                                        No locations available
                                     </Text>
                                 </View>
                             )}
