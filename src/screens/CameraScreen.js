@@ -1,4 +1,4 @@
-// Camera Screen - FIXED VERSION
+// Camera Screen - UPDATED VERSION WITH PINCH/PAN OVERLAY
 // https://docs.expo.dev/versions/latest/sdk/camera/
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -13,11 +13,13 @@ import {
     Modal,
     Dimensions,
     ActivityIndicator,
+    Animated,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
 import { saveRecreation, getMovieLocationById, addMovieLocation } from '../utils/db';
 import { getAllFilmingLocations } from '../utils/filmingLocations';
@@ -37,6 +39,14 @@ export default function CameraScreen() {
     const [locations, setLocations] = useState([]);
     const [selectedLocation, setSelectedLocation] = useState(null);
     const cameraRef = useRef(null);
+
+    // Overlay transformation states
+    const scale = useRef(new Animated.Value(1)).current;
+    const translateX = useRef(new Animated.Value(0)).current;
+    const translateY = useRef(new Animated.Value(0)).current;
+    const savedScale = useRef(1);
+    const savedTranslateX = useRef(0);
+    const savedTranslateY = useRef(0);
 
     useEffect(() => {
         const allLocations = getAllFilmingLocations();
@@ -80,6 +90,13 @@ export default function CameraScreen() {
 
             if (!result.canceled) {
                 setOverlayImage(result.assets[0].uri);
+                // Reset transformations when new image is selected
+                scale.setValue(1);
+                translateX.setValue(0);
+                translateY.setValue(0);
+                savedScale.current = 1;
+                savedTranslateX.current = 0;
+                savedTranslateY.current = 0;
             }
         } catch (error) {
             Alert.alert('Error', 'Failed to pick image');
@@ -88,6 +105,33 @@ export default function CameraScreen() {
 
     const removeOverlay = () => {
         setOverlayImage(null);
+        // Reset transformations
+        scale.setValue(1);
+        translateX.setValue(0);
+        translateY.setValue(0);
+        savedScale.current = 1;
+        savedTranslateX.current = 0;
+        savedTranslateY.current = 0;
+    };
+
+    const resetOverlayTransform = () => {
+        Animated.parallel([
+            Animated.spring(scale, {
+                toValue: 1,
+                useNativeDriver: true,
+            }),
+            Animated.spring(translateX, {
+                toValue: 0,
+                useNativeDriver: true,
+            }),
+            Animated.spring(translateY, {
+                toValue: 0,
+                useNativeDriver: true,
+            }),
+        ]).start();
+        savedScale.current = 1;
+        savedTranslateX.current = 0;
+        savedTranslateY.current = 0;
     };
 
     const adjustOpacity = (direction) => {
@@ -208,8 +252,34 @@ export default function CameraScreen() {
         setShowLocationPicker(false);
     };
 
+    // Pinch gesture for scaling
+    const pinchGesture = Gesture.Pinch()
+        .onUpdate((e) => {
+            const newScale = savedScale.current * e.scale;
+            // Limit scale between 0.5x and 3x
+            const clampedScale = Math.max(0.5, Math.min(3, newScale));
+            scale.setValue(clampedScale);
+        })
+        .onEnd(() => {
+            savedScale.current = scale._value;
+        });
+
+    // Pan gesture for moving the overlay
+    const panGesture = Gesture.Pan()
+        .onUpdate((e) => {
+            translateX.setValue(savedTranslateX.current + e.translationX);
+            translateY.setValue(savedTranslateY.current + e.translationY);
+        })
+        .onEnd(() => {
+            savedTranslateX.current = translateX._value;
+            savedTranslateY.current = translateY._value;
+        });
+
+    // Combine gestures
+    const composedGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+
     return (
-        <View style={styles.container}>
+        <GestureHandlerRootView style={styles.container}>
             {!showPreview ? (
                 <>
                     <CameraView
@@ -219,11 +289,23 @@ export default function CameraScreen() {
                         onCameraReady={() => setIsCameraReady(true)}
                     >
                         {overlayImage && (
-                            <Image
-                                source={{ uri: overlayImage }}
-                                style={[styles.overlay, { opacity: overlayOpacity }]}
-                                resizeMode="contain"
-                            />
+                            <GestureDetector gesture={composedGesture}>
+                                <Animated.Image
+                                    source={{ uri: overlayImage }}
+                                    style={[
+                                        styles.overlay,
+                                        {
+                                            opacity: overlayOpacity,
+                                            transform: [
+                                                { scale: scale },
+                                                { translateX: translateX },
+                                                { translateY: translateY },
+                                            ],
+                                        },
+                                    ]}
+                                    resizeMode="contain"
+                                />
+                            </GestureDetector>
                         )}
 
                         {selectedLocation && (
@@ -288,9 +370,14 @@ export default function CameraScreen() {
                             <Ionicons name="image" size={24} color="#FFF" />
                         </TouchableOpacity>
                         {overlayImage && (
-                            <TouchableOpacity style={styles.sideButton} onPress={removeOverlay}>
-                                <Ionicons name="close-circle" size={24} color="#FFF" />
-                            </TouchableOpacity>
+                            <>
+                                <TouchableOpacity style={styles.sideButton} onPress={resetOverlayTransform}>
+                                    <Ionicons name="resize" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.sideButton} onPress={removeOverlay}>
+                                    <Ionicons name="close-circle" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                            </>
                         )}
                     </View>
                 </>
@@ -354,7 +441,7 @@ export default function CameraScreen() {
                     </View>
                 </View>
             </Modal>
-        </View>
+        </GestureHandlerRootView>
     );
 }
 

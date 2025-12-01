@@ -299,7 +299,7 @@ export default function MapScreen({ route, navigation }) {
                                 onPress={handleNavigateToMovie}
                             >
                                 <Text style={styles.viewMovieText}>
-                                    View Movie Details â†’
+                                    View Movie Details
                                 </Text>
                             </TouchableOpacity>
                         )}
