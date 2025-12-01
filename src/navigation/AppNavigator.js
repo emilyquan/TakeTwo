@@ -88,7 +88,7 @@ function MainTabs({ navigation }) {
 function RootNavigator() {
     return (
         <Stack.Navigator>
-            <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="Back" component={MainTabs} options={{ headerShown: false }} />
             <Stack.Screen 
                 name="BoardDetail" 
                 component={BoardDetailScreen}

@@ -157,6 +157,19 @@ export default function HomeScreen({ navigation }) {
         </TouchableOpacity>
     );
 
+    const renderCreateRecreationCard = () => (
+        <TouchableOpacity
+            style={[styles.recreationCard, styles.createRecreationCard]}
+            onPress={() => navigation.navigate('Camera')}
+            activeOpacity={0.7}
+        >
+            <View style={styles.createRecreationContent}>
+                <Ionicons name="add-circle-outline" size={48} color={COLORS.accent} />
+                <Text style={styles.createRecreationText}>New Recreation</Text>
+            </View>
+        </TouchableOpacity>
+    );
+
     return (
         <View style={styles.container}>
             <ScrollView
@@ -231,15 +244,17 @@ export default function HomeScreen({ navigation }) {
                     </View>
                 ) : (
                     <View style={styles.tabContent}>
-                        {recreations.length > 0 ? (
-                            <View style={styles.recreationsGrid}>
-                                {recreations.map((recreation) => (
-                                    <View key={recreation.id}>
-                                        {renderRecreationItem({ item: recreation })}
-                                    </View>
-                                ))}
-                            </View>
-                        ) : (
+                        <View style={styles.recreationsGrid}>
+                            {renderCreateRecreationCard()}
+                            
+                            {recreations.map((recreation) => (
+                                <View key={recreation.id}>
+                                    {renderRecreationItem({ item: recreation })}
+                                </View>
+                            ))}
+                        </View>
+
+                        {recreations.length === 0 && (
                             <View style={styles.emptyState}>
                                 <Text style={styles.emptyEmoji}>🎬</Text>
                                 <Text style={styles.emptyTitle}>No recreations yet</Text>
@@ -398,6 +413,24 @@ const styles = StyleSheet.create({
     boardCount: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+    },
+    createRecreationCard: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: RECREATION_WIDTH * 1.3,
+        borderWidth: 2,
+        borderColor: COLORS.accent,
+        borderStyle: 'dashed',
+        backgroundColor: COLORS.surface,
+    },
+    createRecreationContent: {
+        alignItems: 'center',
+        gap: SPACING.sm,
+    },
+    createRecreationText: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.accent,
     },
     recreationsGrid: {
         flexDirection: 'row',
