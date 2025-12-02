@@ -1,4 +1,4 @@
-// screens/MapScreen.js - Map with Filming Locations
+// screens/MapScreen.js - Map with Filming Locations (Updated)
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -17,6 +17,7 @@ import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
 import { getAllFilmingLocations, getNearbyLocations } from '../utils/filmingLocations';
+import { getAllMovieLocations } from '../utils/db';
 
 export default function MapScreen({ route, navigation }) {
     const mapRef = useRef(null);
@@ -40,13 +41,18 @@ export default function MapScreen({ route, navigation }) {
 
     useEffect(() => {
         if (selectedLocation) {
-            // Animate to selected location
-            mapRef.current?.animateToRegion({
-                latitude: selectedLocation.latitude,
-                longitude: selectedLocation.longitude,
-                latitudeDelta: 0.05,
-                longitudeDelta: 0.05,
-            });
+            // Animate to selected location with closer zoom
+            setTimeout(() => {
+                mapRef.current?.animateToRegion(
+                    {
+                        latitude: selectedLocation.latitude,
+                        longitude: selectedLocation.longitude,
+                        latitudeDelta: 0.01, // Much closer zoom
+                        longitudeDelta: 0.01,
+                    },
+                    1000 // Animation duration in ms
+                );
+            }, 500); // Small delay to ensure map is ready
         }
     }, [selectedLocation]);
 
@@ -78,13 +84,42 @@ export default function MapScreen({ route, navigation }) {
     };
 
     const loadLocations = () => {
-        const allLocations = getAllFilmingLocations();
+        // Get predefined locations
+        const filmingLocations = getAllFilmingLocations();
+        
+        // Get custom locations from database
+        const customLocations = getAllMovieLocations();
+        
+        // Format custom locations to match the structure
+        const formattedCustom = customLocations.map(loc => ({
+            id: `custom-${loc.id}`,
+            movieTitle: loc.movie_title,
+            movieId: null,
+            sceneDescription: loc.scene_description,
+            locationName: loc.location_name,
+            address: loc.address,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            difficulty: loc.difficulty,
+            isCustom: true,
+            tags: ['custom'],
+        }));
+        
+        // Combine both arrays
+        const allLocations = [...filmingLocations, ...formattedCustom];
         setLocations(allLocations);
         setLoading(false);
     };
 
     const handleMarkerPress = (location) => {
         setSelectedLocation(location);
+        // Zoom to the marker
+        mapRef.current?.animateToRegion({
+            latitude: location.latitude,
+            longitude: location.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+        });
     };
 
     const handleGetDirections = () => {
@@ -147,6 +182,10 @@ export default function MapScreen({ route, navigation }) {
         }
     };
 
+    const handleShowAll = () => {
+        loadLocations();
+    };
+
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
@@ -176,6 +215,8 @@ export default function MapScreen({ route, navigation }) {
                         pinColor={
                             selectedLocation?.id === location.id
                                 ? COLORS.accent
+                                : location.isCustom
+                                ? COLORS.warning
                                 : COLORS.primary
                         }
                     >
@@ -187,6 +228,12 @@ export default function MapScreen({ route, navigation }) {
                                 <Text style={styles.calloutSubtitle}>
                                     {location.locationName}
                                 </Text>
+                                {location.isCustom && (
+                                    <View style={styles.customBadge}>
+                                        <Ionicons name="star" size={12} color={COLORS.warning} />
+                                        <Text style={styles.customBadgeText}>Custom</Text>
+                                    </View>
+                                )}
                             </View>
                         </Callout>
                     </Marker>
@@ -207,6 +254,12 @@ export default function MapScreen({ route, navigation }) {
                 >
                     <Ionicons name="compass" size={24} color={COLORS.text} />
                 </TouchableOpacity>
+                <TouchableOpacity
+                    style={styles.controlButton}
+                    onPress={handleShowAll}
+                >
+                    <Ionicons name="globe" size={24} color={COLORS.text} />
+                </TouchableOpacity>
             </View>
 
             {/* Selected Location Card */}
@@ -215,9 +268,17 @@ export default function MapScreen({ route, navigation }) {
                     <ScrollView>
                         <View style={styles.locationHeader}>
                             <View style={styles.locationHeaderText}>
-                                <Text style={styles.locationTitle}>
-                                    {selectedLocation.movieTitle}
-                                </Text>
+                                <View style={styles.locationTitleRow}>
+                                    <Text style={styles.locationTitle}>
+                                        {selectedLocation.movieTitle}
+                                    </Text>
+                                    {selectedLocation.isCustom && (
+                                        <View style={styles.customChip}>
+                                            <Ionicons name="star" size={14} color={COLORS.warning} />
+                                            <Text style={styles.customChipText}>Custom</Text>
+                                        </View>
+                                    )}
+                                </View>
                                 <Text style={styles.locationSubtitle}>
                                     {selectedLocation.locationName}
                                 </Text>
@@ -230,9 +291,11 @@ export default function MapScreen({ route, navigation }) {
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.locationDescription}>
-                            {selectedLocation.sceneDescription}
-                        </Text>
+                        {selectedLocation.sceneDescription && (
+                            <Text style={styles.locationDescription}>
+                                {selectedLocation.sceneDescription}
+                            </Text>
+                        )}
 
                         <View style={styles.locationDetails}>
                             <View style={styles.detailRow}>
@@ -336,6 +399,18 @@ const styles = StyleSheet.create({
     calloutSubtitle: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+        marginBottom: SPACING.xs,
+    },
+    customBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: SPACING.xs,
+    },
+    customBadgeText: {
+        fontSize: FONTS.sizes.xs,
+        color: COLORS.warning,
+        fontWeight: '600',
     },
     controls: {
         position: 'absolute',
@@ -381,11 +456,30 @@ const styles = StyleSheet.create({
     locationHeaderText: {
         flex: 1,
     },
+    locationTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginBottom: SPACING.xs,
+    },
     locationTitle: {
         fontSize: FONTS.sizes.xl,
         fontWeight: '700',
         color: COLORS.text,
-        marginBottom: SPACING.xs,
+    },
+    customChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: 2,
+        borderRadius: BORDER_RADIUS.full,
+        gap: 4,
+    },
+    customChipText: {
+        fontSize: FONTS.sizes.xs,
+        color: COLORS.warning,
+        fontWeight: '600',
     },
     locationSubtitle: {
         fontSize: FONTS.sizes.md,

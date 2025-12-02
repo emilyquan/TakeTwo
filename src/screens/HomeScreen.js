@@ -1,4 +1,4 @@
-// screens/HomeScreen.js - Updated with Boards and Recreations Tabs
+// screens/HomeScreen.js - Updated with Nearby Locations and Custom Locations
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -10,13 +10,16 @@ import {
     RefreshControl,
     Image,
     Dimensions,
-    FlatList,
+    Modal,
+    Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import { getUserStats, getAllRecreations } from '../utils/db';
+import { getUserStats, getAllRecreations, getAllMovieLocations, deleteMovieLocation } from '../utils/db';
 import { getUserPreferences, getUserBoards } from '../utils/storage';
+import { getNearbyLocations } from '../utils/filmingLocations';
 
 const { width } = Dimensions.get('window');
 const BOARD_WIDTH = (width - SPACING.lg * 3) / 2;
@@ -28,14 +31,21 @@ export default function HomeScreen({ navigation }) {
         scenes_recreated: 0,
         locations_visited: 0,
     });
-    const [activeTab, setActiveTab] = useState('boards'); // 'boards' or 'recreations'
+    const [activeTab, setActiveTab] = useState('boards');
     const [boards, setBoards] = useState([]);
     const [recreations, setRecreations] = useState([]);
     const [refreshing, setRefreshing] = useState(false);
+    const [nearbyCount, setNearbyCount] = useState(0);
+    const [customLocationsCount, setCustomLocationsCount] = useState(0);
+    const [userLocation, setUserLocation] = useState(null);
+    const [showLocationsModal, setShowLocationsModal] = useState(false);
+    const [nearbyLocations, setNearbyLocations] = useState([]);
+    const [customLocations, setCustomLocations] = useState([]);
 
     useFocusEffect(
         React.useCallback(() => {
             loadData();
+            getUserLocationAndNearby();
         }, [])
     );
 
@@ -60,14 +70,44 @@ export default function HomeScreen({ navigation }) {
             // Load recreations
             const userRecreations = getAllRecreations();
             setRecreations(userRecreations);
+
+            // Load custom locations count
+            const allLocations = getAllMovieLocations();
+            setCustomLocationsCount(allLocations.length);
+            setCustomLocations(allLocations);
         } catch (error) {
             console.error('Error loading home data:', error);
+        }
+    };
+
+    const getUserLocationAndNearby = async () => {
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status === 'granted') {
+                const location = await Location.getCurrentPositionAsync({});
+                setUserLocation({
+                    latitude: location.coords.latitude,
+                    longitude: location.coords.longitude,
+                });
+
+                // Get nearby locations within 100km
+                const nearby = getNearbyLocations(
+                    location.coords.latitude,
+                    location.coords.longitude,
+                    100
+                );
+                setNearbyCount(nearby.length);
+                setNearbyLocations(nearby);
+            }
+        } catch (error) {
+            console.error('Error getting user location:', error);
         }
     };
 
     const onRefresh = React.useCallback(async () => {
         setRefreshing(true);
         await loadData();
+        await getUserLocationAndNearby();
         setRefreshing(false);
     }, []);
 
@@ -84,8 +124,56 @@ export default function HomeScreen({ navigation }) {
     };
 
     const handleRecreationPress = (recreation) => {
-        // Navigate to recreation detail or open image viewer
         navigation.navigate('RecreationDetail', { recreation });
+    };
+
+    const handleAddLocation = () => {
+        navigation.navigate('AddLocation');
+    };
+
+    const handleLocationPress = (location) => {
+        setShowLocationsModal(false);
+        // Format the location properly for the Map screen
+        const formattedLocation = location.movie_title ? {
+            // Custom location from database
+            id: location.id,
+            movieTitle: location.movie_title,
+            sceneDescription: location.scene_description,
+            locationName: location.location_name,
+            address: location.address,
+            latitude: location.latitude,
+            longitude: location.longitude,
+            difficulty: location.difficulty,
+            movieId: null,
+        } : location; // Already formatted (nearby location)
+        
+        navigation.navigate('Map', {
+            selectedLocation: formattedLocation,
+        });
+    };
+
+    const handleDeleteCustomLocation = (locationId) => {
+        Alert.alert(
+            'Delete Location',
+            'Are you sure you want to delete this custom location?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const success = deleteMovieLocation(locationId);
+                        if (success) {
+                            // Refresh data
+                            await loadData();
+                            Alert.alert('Success', 'Location deleted');
+                        } else {
+                            Alert.alert('Error', 'Failed to delete location');
+                        }
+                    },
+                },
+            ]
+        );
     };
 
     const renderBoardItem = ({ item }) => (
@@ -195,11 +283,29 @@ export default function HomeScreen({ navigation }) {
                         <Text style={styles.statNumber}>{stats.scenes_recreated || 0}</Text>
                         <Text style={styles.statLabel}>Scenes</Text>
                     </View>
-                    <View style={styles.statCard}>
-                        <Text style={styles.statNumber}>{stats.locations_visited || 0}</Text>
+                    <TouchableOpacity 
+                        style={[styles.statCard, styles.locationsCard]}
+                        onPress={() => setShowLocationsModal(true)}
+                        activeOpacity={0.7}
+                    >
+                        <Text style={styles.statNumber}>{nearbyCount + customLocationsCount}</Text>
                         <Text style={styles.statLabel}>Locations</Text>
-                    </View>
+                        <View style={styles.locationSubtext}>
+                            <Text style={styles.locationDetail}>{nearbyCount} nearby</Text>
+                            <Text style={styles.locationDetail}>{customLocationsCount} custom</Text>
+                        </View>
+                    </TouchableOpacity>
                 </View>
+
+                {/* Add Location Button */}
+                <TouchableOpacity
+                    style={styles.addLocationButton}
+                    onPress={handleAddLocation}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="add-circle-outline" size={24} color={COLORS.accent} />
+                    <Text style={styles.addLocationText}>Add Custom Location</Text>
+                </TouchableOpacity>
 
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
@@ -234,7 +340,7 @@ export default function HomeScreen({ navigation }) {
                         </View>
                         {boards.length === 0 && (
                             <View style={styles.emptyState}>
-                                <Text style={styles.emptyEmoji}>📁</Text>
+                                <Text style={styles.emptyEmoji}>📌</Text>
                                 <Text style={styles.emptyTitle}>No boards yet</Text>
                                 <Text style={styles.emptyText}>
                                     Create your first board to save movies and locations
@@ -266,6 +372,117 @@ export default function HomeScreen({ navigation }) {
                     </View>
                 )}
             </ScrollView>
+
+            {/* Locations Modal */}
+            <Modal
+                visible={showLocationsModal}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setShowLocationsModal(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>My Locations</Text>
+                            <TouchableOpacity onPress={() => setShowLocationsModal(false)}>
+                                <Ionicons name="close" size={28} color={COLORS.text} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <ScrollView style={styles.locationsList}>
+                            {/* Nearby Locations Section */}
+                            {nearbyLocations.length > 0 && (
+                                <>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="compass" size={20} color={COLORS.accent} />
+                                        <Text style={styles.sectionTitle}>
+                                            Nearby Locations ({nearbyLocations.length})
+                                        </Text>
+                                    </View>
+                                    {nearbyLocations.map((location) => (
+                                        <TouchableOpacity
+                                            key={`nearby-${location.id}`}
+                                            style={styles.locationItem}
+                                            onPress={() => handleLocationPress(location)}
+                                        >
+                                            <View style={styles.locationIcon}>
+                                                <Ionicons name="location" size={24} color={COLORS.accent} />
+                                            </View>
+                                            <View style={styles.locationItemInfo}>
+                                                <Text style={styles.locationItemTitle}>
+                                                    {location.movieTitle}
+                                                </Text>
+                                                <Text style={styles.locationItemSubtitle}>
+                                                    {location.locationName}
+                                                </Text>
+                                                <Text style={styles.locationItemAddress}>
+                                                    {location.address}
+                                                </Text>
+                                            </View>
+                                            <Ionicons name="chevron-forward" size={24} color={COLORS.textMuted} />
+                                        </TouchableOpacity>
+                                    ))}
+                                </>
+                            )}
+
+                            {/* Custom Locations Section */}
+                            {customLocations.length > 0 && (
+                                <>
+                                    <View style={styles.sectionHeader}>
+                                        <Ionicons name="star" size={20} color={COLORS.warning} />
+                                        <Text style={styles.sectionTitle}>
+                                            My Custom Locations ({customLocations.length})
+                                        </Text>
+                                    </View>
+                                    {customLocations.map((location) => (
+                                        <View
+                                            key={`custom-${location.id}`}
+                                            style={styles.locationItemContainer}
+                                        >
+                                            <TouchableOpacity
+                                                style={styles.locationItem}
+                                                onPress={() => handleLocationPress(location)}
+                                            >
+                                                <View style={styles.locationIcon}>
+                                                    <Ionicons name="star" size={24} color={COLORS.warning} />
+                                                </View>
+                                                <View style={styles.locationItemInfo}>
+                                                    <Text style={styles.locationItemTitle}>
+                                                        {location.movie_title}
+                                                    </Text>
+                                                    <Text style={styles.locationItemSubtitle}>
+                                                        {location.location_name}
+                                                    </Text>
+                                                    <Text style={styles.locationItemAddress}>
+                                                        {location.address}
+                                                    </Text>
+                                                </View>
+                                                <Ionicons name="chevron-forward" size={24} color={COLORS.textMuted} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity
+                                                style={styles.deleteButton}
+                                                onPress={() => handleDeleteCustomLocation(location.id)}
+                                            >
+                                                <Ionicons name="trash-outline" size={20} color={COLORS.error} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    ))}
+                                </>
+                            )}
+
+                            {nearbyLocations.length === 0 && customLocations.length === 0 && (
+                                <View style={styles.emptyLocations}>
+                                    <Ionicons name="location-outline" size={64} color={COLORS.textMuted} />
+                                    <Text style={styles.emptyLocationsText}>No locations yet</Text>
+                                    <Text style={styles.emptyLocationsSubtext}>
+                                        Add custom locations or enable location services to see nearby spots
+                                    </Text>
+                                </View>
+                            )}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -300,7 +517,7 @@ const styles = StyleSheet.create({
     statsContainer: {
         flexDirection: 'row',
         gap: SPACING.md,
-        marginBottom: SPACING.xl,
+        marginBottom: SPACING.md,
     },
     statCard: {
         flex: 1,
@@ -311,6 +528,10 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: COLORS.border,
     },
+    locationsCard: {
+        borderColor: COLORS.accent,
+        borderWidth: 2,
+    },
     statNumber: {
         fontSize: 28,
         fontWeight: '700',
@@ -320,6 +541,32 @@ const styles = StyleSheet.create({
     statLabel: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+        marginBottom: SPACING.xs,
+    },
+    locationSubtext: {
+        alignItems: 'center',
+    },
+    locationDetail: {
+        fontSize: FONTS.sizes.xs,
+        color: COLORS.textMuted,
+    },
+    addLocationButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: COLORS.surface,
+        padding: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        borderWidth: 2,
+        borderColor: COLORS.accent,
+        borderStyle: 'dashed',
+        marginBottom: SPACING.xl,
+        gap: SPACING.sm,
+    },
+    addLocationText: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.accent,
     },
     tabsContainer: {
         flexDirection: 'row',
@@ -486,5 +733,107 @@ const styles = StyleSheet.create({
         fontSize: FONTS.sizes.md,
         color: COLORS.textLight,
         textAlign: 'center',
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    modalContent: {
+        backgroundColor: COLORS.background,
+        borderTopLeftRadius: BORDER_RADIUS.xl,
+        borderTopRightRadius: BORDER_RADIUS.xl,
+        maxHeight: '80%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: SPACING.lg,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    modalTitle: {
+        fontSize: FONTS.sizes.xl,
+        fontWeight: '600',
+        color: COLORS.text,
+    },
+    locationsList: {
+        padding: SPACING.lg,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: SPACING.sm,
+        marginBottom: SPACING.md,
+        marginTop: SPACING.lg,
+    },
+    sectionTitle: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.text,
+    },
+    locationItem: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        padding: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    locationItemContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+        gap: SPACING.sm,
+    },
+    deleteButton: {
+        backgroundColor: COLORS.surface,
+        padding: SPACING.md,
+        borderRadius: BORDER_RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.error,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    locationIcon: {
+        marginRight: SPACING.md,
+    },
+    locationItemInfo: {
+        flex: 1,
+    },
+    locationItemTitle: {
+        fontSize: FONTS.sizes.md,
+        fontWeight: '600',
+        color: COLORS.text,
+        marginBottom: SPACING.xs,
+    },
+    locationItemSubtitle: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.textLight,
+        marginBottom: 2,
+    },
+    locationItemAddress: {
+        fontSize: FONTS.sizes.xs,
+        color: COLORS.textMuted,
+    },
+    emptyLocations: {
+        alignItems: 'center',
+        paddingVertical: SPACING.xxl * 2,
+    },
+    emptyLocationsText: {
+        fontSize: FONTS.sizes.lg,
+        fontWeight: '600',
+        color: COLORS.text,
+        marginTop: SPACING.lg,
+        marginBottom: SPACING.sm,
+    },
+    emptyLocationsSubtext: {
+        fontSize: FONTS.sizes.sm,
+        color: COLORS.textLight,
+        textAlign: 'center',
+        paddingHorizontal: SPACING.xl,
     },
 });

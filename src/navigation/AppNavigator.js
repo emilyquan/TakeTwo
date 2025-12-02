@@ -1,4 +1,4 @@
-// AppNavigator.js - Updated with New Screens
+// AppNavigator.js - Updated with AddLocation Screen
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,6 +23,7 @@ import MovieDetailScreen from '../screens/MovieDetailScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CreateBoardScreen from '../screens/CreateBoardScreen';
 import RecreationDetailScreen from '../screens/RecreationDetailScreen';
+import AddLocationScreen from '../screens/AddLocationScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -128,6 +129,15 @@ function RootNavigator() {
                 component={RecreationDetailScreen}
                 options={{
                     title: 'Recreation',
+                    headerStyle: { backgroundColor: COLORS.background },
+                    headerTintColor: COLORS.text,
+                }}
+            />
+            <Stack.Screen 
+                name="AddLocation" 
+                component={AddLocationScreen}
+                options={{
+                    title: 'Add Location',
                     headerStyle: { backgroundColor: COLORS.background },
                     headerTintColor: COLORS.text,
                 }}
