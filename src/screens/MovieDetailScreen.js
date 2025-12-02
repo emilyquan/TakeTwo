@@ -1,4 +1,4 @@
-// screens/MovieDetailScreen.js - Updated with Save to Board
+// screens/MovieDetailScreen.js - Updated with Map Navigation for Filming Locations
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -127,9 +127,14 @@ export default function MovieDetailScreen({ route, navigation }) {
         }
     };
 
+    // FIXED: Navigate to map and zoom to specific location
     const handleNavigateToLocation = (location) => {
-        navigation.navigate('Map', {
-            selectedLocation: location,
+        // Navigate to the tab navigator first, then to the Map screen
+        navigation.navigate('Back', {
+            screen: 'Map',
+            params: {
+                selectedLocation: location,
+            },
         });
     };
 

@@ -1,4 +1,4 @@
-// Camera Screen - UPDATED VERSION WITH PINCH/PAN OVERLAY
+// Camera Screen - UPDATED VERSION WITH CUSTOM LOCATIONS
 // https://docs.expo.dev/versions/latest/sdk/camera/
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -21,7 +21,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { Ionicons } from '@expo/vector-icons';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { COLORS, SPACING, FONTS, BORDER_RADIUS } from '../constants/themes';
-import { saveRecreation, getMovieLocationById, addMovieLocation } from '../utils/db';
+import { saveRecreation, getMovieLocationById, addMovieLocation, getAllMovieLocations } from '../utils/db';
 import { getAllFilmingLocations } from '../utils/filmingLocations';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -49,7 +49,25 @@ export default function CameraScreen() {
     const savedTranslateY = useRef(0);
 
     useEffect(() => {
-        const allLocations = getAllFilmingLocations();
+        // Load both predefined and custom locations
+        const predefinedLocations = getAllFilmingLocations();
+        const customLocations = getAllMovieLocations();
+        
+        // Format custom locations to match the structure
+        const formattedCustom = customLocations.map(loc => ({
+            id: `custom-${loc.id}`,
+            movieTitle: loc.movie_title,
+            sceneDescription: loc.scene_description,
+            locationName: loc.location_name,
+            address: loc.address,
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            difficulty: loc.difficulty,
+            isCustom: true,
+        }));
+        
+        // Combine both arrays
+        const allLocations = [...predefinedLocations, ...formattedCustom];
         setLocations(allLocations);
     }, []);
 
@@ -159,7 +177,13 @@ export default function CameraScreen() {
     // FIXED: Ensure location exists in database before saving recreation
     const ensureLocationInDatabase = async (location) => {
         try {
-            // Check if location already exists in the database
+            // For custom locations (already in database)
+            if (location.isCustom) {
+                const locationIdStr = location.id.replace('custom-', '');
+                return parseInt(locationIdStr);
+            }
+            
+            // For predefined locations, check if exists
             const existingLocation = getMovieLocationById(location.id);
             
             if (existingLocation) {
@@ -314,6 +338,9 @@ export default function CameraScreen() {
                                     <Text style={styles.locationBadgeText}>
                                         {selectedLocation.movieTitle}
                                     </Text>
+                                    {selectedLocation.isCustom && (
+                                        <Ionicons name="star" size={14} color={COLORS.warning} style={{ marginLeft: 4 }} />
+                                    )}
                                 </View>
                             </View>
                         )}
@@ -426,8 +453,16 @@ export default function CameraScreen() {
                                         ]}
                                         onPress={() => selectLocation(location)}
                                     >
-                                        <Text style={styles.locationMovie}>{location.movieTitle}</Text>
-                                        <Text style={styles.locationName}>{location.locationName}</Text>
+                                        <View style={styles.locationItemContent}>
+                                            <Text style={styles.locationMovie}>{location.movieTitle}</Text>
+                                            <Text style={styles.locationName}>{location.locationName}</Text>
+                                        </View>
+                                        {location.isCustom && (
+                                            <View style={styles.customLocationBadge}>
+                                                <Ionicons name="star" size={16} color={COLORS.warning} />
+                                                <Text style={styles.customLocationText}>Custom</Text>
+                                            </View>
+                                        )}
                                     </TouchableOpacity>
                                 ))
                             ) : (
@@ -497,6 +532,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     locationBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
         backgroundColor: 'rgba(0,0,0,0.7)',
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.sm,
@@ -642,6 +679,9 @@ const styles = StyleSheet.create({
         padding: SPACING.lg,
     },
     locationItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         backgroundColor: COLORS.surface,
         padding: SPACING.lg,
         borderRadius: BORDER_RADIUS.md,
@@ -653,6 +693,9 @@ const styles = StyleSheet.create({
         borderColor: COLORS.accent,
         borderWidth: 2,
     },
+    locationItemContent: {
+        flex: 1,
+    },
     locationMovie: {
         fontSize: FONTS.sizes.md,
         fontWeight: '600',
@@ -662,6 +705,22 @@ const styles = StyleSheet.create({
     locationName: {
         fontSize: FONTS.sizes.sm,
         color: COLORS.textLight,
+    },
+    customLocationBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.surface,
+        paddingHorizontal: SPACING.sm,
+        paddingVertical: SPACING.xs,
+        borderRadius: BORDER_RADIUS.full,
+        borderWidth: 1,
+        borderColor: COLORS.warning,
+        gap: 4,
+    },
+    customLocationText: {
+        fontSize: FONTS.sizes.xs,
+        color: COLORS.warning,
+        fontWeight: '600',
     },
     emptyState: {
         padding: SPACING.xl,

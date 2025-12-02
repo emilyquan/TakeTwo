@@ -147,8 +147,12 @@ export default function HomeScreen({ navigation }) {
             movieId: null,
         } : location; // Already formatted (nearby location)
         
-        navigation.navigate('Map', {
-            selectedLocation: formattedLocation,
+        // FIXED: Navigate to nested Map screen
+        navigation.navigate('Back', {
+            screen: 'Map',
+            params: {
+                selectedLocation: formattedLocation,
+            },
         });
     };
 
