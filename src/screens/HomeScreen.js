@@ -342,15 +342,6 @@ export default function HomeScreen({ navigation }) {
                                 </View>
                             ))}
                         </View>
-                        {boards.length === 0 && (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyEmoji}>📌</Text>
-                                <Text style={styles.emptyTitle}>No boards yet</Text>
-                                <Text style={styles.emptyText}>
-                                    Create your first board to save movies and locations
-                                </Text>
-                            </View>
-                        )}
                     </View>
                 ) : (
                     <View style={styles.tabContent}>
@@ -363,16 +354,6 @@ export default function HomeScreen({ navigation }) {
                                 </View>
                             ))}
                         </View>
-
-                        {recreations.length === 0 && (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyEmoji}>🎬</Text>
-                                <Text style={styles.emptyTitle}>No recreations yet</Text>
-                                <Text style={styles.emptyText}>
-                                    Start recreating scenes and they'll appear here
-                                </Text>
-                            </View>
-                        )}
                     </View>
                 )}
             </ScrollView>
@@ -616,6 +597,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         height: BOARD_WIDTH + 60,
+        borderWidth: 2,
+        borderColor: COLORS.accent,
+        borderStyle: 'dashed',
     },
     createBoardContent: {
         alignItems: 'center',

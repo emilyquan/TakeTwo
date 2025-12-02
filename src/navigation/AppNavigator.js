@@ -1,4 +1,4 @@
-// AppNavigator.js - Updated with AddLocation Screen
+// AppNavigator.js - Updated with removed Home header
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -40,7 +40,7 @@ function MainTabs({ navigation }) {
                         case 'Home':
                             iconName = focused ? 'home' : 'home-outline';
                             break;
-                        case 'Scenes':
+                        case 'Movie Library':
                             iconName = focused ? 'film' : 'film-outline';
                             break;
                         case 'Camera':
@@ -77,8 +77,14 @@ function MainTabs({ navigation }) {
                 ),
             })}
         >
-            <Tab.Screen name="Home" component={HomeScreen} />
-            <Tab.Screen name="Scenes" component={SceneLibraryScreen} />
+            <Tab.Screen 
+                name="Home" 
+                component={HomeScreen}
+                options={{
+                    headerTitle: '', // FIXED: Remove "Home" text but keep header bar
+                }}
+            />
+            <Tab.Screen name="Movie Library" component={SceneLibraryScreen} />
             <Tab.Screen name="Camera" component={CameraScreen} />
             <Tab.Screen name="Map" component={MapScreen} />
         </Tab.Navigator>

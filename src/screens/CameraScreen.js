@@ -44,9 +44,11 @@ export default function CameraScreen() {
     const scale = useRef(new Animated.Value(1)).current;
     const translateX = useRef(new Animated.Value(0)).current;
     const translateY = useRef(new Animated.Value(0)).current;
+    const rotation = useRef(new Animated.Value(0)).current;
     const savedScale = useRef(1);
     const savedTranslateX = useRef(0);
     const savedTranslateY = useRef(0);
+    const savedRotation = useRef(0);
 
     useEffect(() => {
         // Load both predefined and custom locations
@@ -102,7 +104,7 @@ export default function CameraScreen() {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
                 mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
+                allowsEditing: false, // FIXED: No cropping required
                 quality: 1,
             });
 
@@ -112,9 +114,11 @@ export default function CameraScreen() {
                 scale.setValue(1);
                 translateX.setValue(0);
                 translateY.setValue(0);
+                rotation.setValue(0);
                 savedScale.current = 1;
                 savedTranslateX.current = 0;
                 savedTranslateY.current = 0;
+                savedRotation.current = 0;
             }
         } catch (error) {
             Alert.alert('Error', 'Failed to pick image');
@@ -127,9 +131,11 @@ export default function CameraScreen() {
         scale.setValue(1);
         translateX.setValue(0);
         translateY.setValue(0);
+        rotation.setValue(0);
         savedScale.current = 1;
         savedTranslateX.current = 0;
         savedTranslateY.current = 0;
+        savedRotation.current = 0;
     };
 
     const resetOverlayTransform = () => {
@@ -146,10 +152,25 @@ export default function CameraScreen() {
                 toValue: 0,
                 useNativeDriver: true,
             }),
+            Animated.spring(rotation, {
+                toValue: 0,
+                useNativeDriver: true,
+            }),
         ]).start();
         savedScale.current = 1;
         savedTranslateX.current = 0;
         savedTranslateY.current = 0;
+        savedRotation.current = 0;
+    };
+
+    const rotateOverlay = (direction) => {
+        const rotationAmount = direction === 'left' ? -15 : 15;
+        const newRotation = savedRotation.current + rotationAmount;
+        Animated.spring(rotation, {
+            toValue: newRotation,
+            useNativeDriver: true,
+        }).start();
+        savedRotation.current = newRotation;
     };
 
     const adjustOpacity = (direction) => {
@@ -324,6 +345,10 @@ export default function CameraScreen() {
                                                 { scale: scale },
                                                 { translateX: translateX },
                                                 { translateY: translateY },
+                                                { rotate: rotation.interpolate({
+                                                    inputRange: [-360, 360],
+                                                    outputRange: ['-360deg', '360deg']
+                                                })},
                                             ],
                                         },
                                     ]}
@@ -341,6 +366,12 @@ export default function CameraScreen() {
                                     {selectedLocation.isCustom && (
                                         <Ionicons name="star" size={14} color={COLORS.warning} style={{ marginLeft: 4 }} />
                                     )}
+                                    <TouchableOpacity 
+                                        onPress={() => setSelectedLocation(null)}
+                                        style={styles.removeLocationButton}
+                                    >
+                                        <Ionicons name="close" size={16} color="#FFF" />
+                                    </TouchableOpacity>
                                 </View>
                             </View>
                         )}
@@ -398,8 +429,20 @@ export default function CameraScreen() {
                         </TouchableOpacity>
                         {overlayImage && (
                             <>
+                                <TouchableOpacity 
+                                    style={styles.sideButton} 
+                                    onPress={() => rotateOverlay('left')}
+                                >
+                                    <Ionicons name="arrow-back" size={24} color="#FFF" />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.sideButton} 
+                                    onPress={() => rotateOverlay('right')}
+                                >
+                                    <Ionicons name="arrow-forward" size={24} color="#FFF" />
+                                </TouchableOpacity>
                                 <TouchableOpacity style={styles.sideButton} onPress={resetOverlayTransform}>
-                                    <Ionicons name="resize" size={24} color="#FFF" />
+                                    <Ionicons name="refresh" size={24} color="#FFF" />
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.sideButton} onPress={removeOverlay}>
                                     <Ionicons name="close-circle" size={24} color="#FFF" />
@@ -538,11 +581,18 @@ const styles = StyleSheet.create({
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.sm,
         borderRadius: BORDER_RADIUS.full,
+        gap: SPACING.xs,
     },
     locationBadgeText: {
         color: '#FFF',
         fontSize: FONTS.sizes.md,
         fontWeight: '600',
+    },
+    removeLocationButton: {
+        marginLeft: SPACING.xs,
+        padding: 4,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        borderRadius: BORDER_RADIUS.full,
     },
     controls: {
         position: 'absolute',
@@ -606,7 +656,7 @@ const styles = StyleSheet.create({
     sideControls: {
         position: 'absolute',
         right: SPACING.md,
-        top: '45%',
+        top: '5%',
         gap: SPACING.md,
     },
     sideButton: {
