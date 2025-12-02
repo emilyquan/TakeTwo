@@ -30,6 +30,7 @@ export default function AddLocationScreen({ navigation }) {
 
     const difficulties = ['easy', 'medium', 'hard'];
 
+    // Get current location and reverse geocode to address
     const handleGetCurrentLocation = async () => {
         try {
             setGettingLocation(true);
@@ -76,6 +77,7 @@ export default function AddLocationScreen({ navigation }) {
         }
     };
 
+    // Validate form inputs
     const validateForm = () => {
         if (!movieTitle.trim()) {
             Alert.alert('Error', 'Please enter a movie title');
@@ -100,6 +102,7 @@ export default function AddLocationScreen({ navigation }) {
         return true;
     };
 
+    // Save the new custom location
     const handleSaveLocation = async () => {
         if (!validateForm()) return;
 
@@ -283,6 +286,7 @@ export default function AddLocationScreen({ navigation }) {
                         </View>
                     </View>
 
+                    {/* Info Box */}
                     <View style={styles.infoBox}>
                         <Ionicons name="information-circle" size={20} color={COLORS.accent} />
                         <Text style={styles.infoText}>

@@ -23,6 +23,7 @@ export default function AuthScreen() {
     const [loading, setLoading] = useState(false);
     const [isSignUp, setIsSignUp] = useState(false);
 
+    // Handle user sign up
     const handleSignUp = async () => {
         if (!email.trim() || !password) {
             Alert.alert('Error', 'Please enter email and password');
@@ -48,6 +49,7 @@ export default function AuthScreen() {
         }
     };
 
+    // Handle user sign in
     const handleSignIn = async () => {
         if (!email.trim() || !password) {
             Alert.alert('Error', 'Please enter email and password');
