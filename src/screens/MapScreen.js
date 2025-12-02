@@ -1,4 +1,4 @@
-// screens/MapScreen.js - Map with Filming Locations (Updated)
+// screens/MapScreen.js - Map with Filming Locations (FIXED ZOOM)
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -22,11 +22,10 @@ import { getAllMovieLocations } from '../utils/db';
 export default function MapScreen({ route, navigation }) {
     const mapRef = useRef(null);
     const [locations, setLocations] = useState([]);
-    const [selectedLocation, setSelectedLocation] = useState(
-        route.params?.selectedLocation || null
-    );
+    const [selectedLocation, setSelectedLocation] = useState(null);
     const [userLocation, setUserLocation] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [mapReady, setMapReady] = useState(false);
     const [region, setRegion] = useState({
         latitude: 37.78825,
         longitude: -122.4324,
@@ -39,32 +38,46 @@ export default function MapScreen({ route, navigation }) {
         loadLocations();
     }, []);
 
+    // Handle navigation parameter - zoom to location when coming from another screen
     useEffect(() => {
-        if (selectedLocation) {
-            // Animate to selected location with closer zoom
-            setTimeout(() => {
-                mapRef.current?.animateToRegion(
-                    {
-                        latitude: selectedLocation.latitude,
-                        longitude: selectedLocation.longitude,
-                        latitudeDelta: 0.01, // Much closer zoom
-                        longitudeDelta: 0.01,
-                    },
-                    1000 // Animation duration in ms
-                );
-            }, 500); // Small delay to ensure map is ready
+        if (route.params?.selectedLocation && mapReady) {
+            const location = route.params.selectedLocation;
+            setSelectedLocation(location);
+            
+            // Use a longer delay to ensure map is fully rendered
+            const timer = setTimeout(() => {
+                zoomToLocation(location);
+            }, 500);
+            
+            return () => clearTimeout(timer);
         }
-    }, [selectedLocation]);
+    }, [route.params?.selectedLocation, mapReady]);
+
+    // Helper function to zoom to a location
+    const zoomToLocation = (location) => {
+        if (mapRef.current && location) {
+            mapRef.current.animateToRegion(
+                {
+                    latitude: location.latitude,
+                    longitude: location.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                },
+                800
+            );
+        }
+    };
 
     const requestLocationPermission = async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status === 'granted') {
                 const location = await Location.getCurrentPositionAsync({});
-                setUserLocation({
+                const userCoords = {
                     latitude: location.coords.latitude,
                     longitude: location.coords.longitude,
-                });
+                };
+                setUserLocation(userCoords);
                 
                 setRegion({
                     latitude: location.coords.latitude,
@@ -111,15 +124,16 @@ export default function MapScreen({ route, navigation }) {
         setLoading(false);
     };
 
+    const handleMapReady = () => {
+        setMapReady(true);
+    };
+
     const handleMarkerPress = (location) => {
         setSelectedLocation(location);
-        // Zoom to the marker
-        mapRef.current?.animateToRegion({
-            latitude: location.latitude,
-            longitude: location.longitude,
-            latitudeDelta: 0.01,
-            longitudeDelta: 0.01,
-        });
+        // Small delay to ensure marker selection happens first
+        setTimeout(() => {
+            zoomToLocation(location);
+        }, 100);
     };
 
     const handleGetDirections = () => {
@@ -156,12 +170,12 @@ export default function MapScreen({ route, navigation }) {
     };
 
     const handleCenterOnUser = () => {
-        if (userLocation) {
-            mapRef.current?.animateToRegion({
+        if (userLocation && mapRef.current) {
+            mapRef.current.animateToRegion({
                 ...userLocation,
                 latitudeDelta: 0.5,
                 longitudeDelta: 0.5,
-            });
+            }, 500);
         }
     };
 
@@ -203,6 +217,7 @@ export default function MapScreen({ route, navigation }) {
                 initialRegion={region}
                 showsUserLocation
                 showsMyLocationButton={false}
+                onMapReady={handleMapReady}
             >
                 {locations.map((location) => (
                     <Marker
